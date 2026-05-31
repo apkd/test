@@ -1,0 +1,143 @@
+---
+name: CI
+
+"on":
+  pull_request:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  xtool-build:
+    name: xtool build
+    runs-on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Show tool versions
+        run: |
+          xcode-select -p
+          xcodebuild -version
+          swift --version
+          xcrun -sdk iphoneos -show-sdk-path
+          brew --version
+
+      - name: Install xtool
+        run: brew install xtool-org/tap/xtool
+
+      - name: Show xtool help
+        run: xtool --help
+
+      - name: Build app
+        run: xtool dev build
+
+  package-tests:
+    name: package tests
+    runs-on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Show tool versions
+        run: |
+          xcode-select -p
+          xcodebuild -version
+          swift --version
+          xcrun -sdk iphonesimulator -show-sdk-path
+          xcrun simctl list runtimes
+
+      - name: Select package scheme and simulator
+        id: settings
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          schemes_json="$(xcodebuild -list -json)"
+          printf '%s\n' "$schemes_json"
+
+          scheme="$(
+            printf '%s' "$schemes_json" |
+              jq -r '
+                (.project.schemes // .workspace.schemes // []) as $schemes
+                | (
+                    $schemes
+                    | map(select(. == "TestApp-Package" or . == "TestApp"))
+                    | .[0]
+                  )
+                  // $schemes[0]
+                  // empty
+              '
+          )"
+
+          if [[ -z "$scheme" ]]; then
+            echo "No xcodebuild scheme found." >&2
+            exit 1
+          fi
+
+          xcrun simctl list devices available
+
+          simulator_id="$(
+            xcrun simctl list devices available -j |
+              jq -r '
+                [
+                  .devices
+                  | to_entries[]
+                  | .value[]
+                  | select(
+                      .isAvailable == true
+                      and (.name | startswith("iPhone"))
+                    )
+                ] as $devices
+                | (
+                    ($devices | map(select(.name | test("^iPhone 16"))) | .[0])
+                    // (
+                      $devices
+                      | map(select(.name | test("^iPhone 15")))
+                      | .[0]
+                    )
+                    // $devices[0]
+                    // {}
+                  )
+                | .udid // empty
+              '
+          )"
+
+          if [[ -z "$simulator_id" ]]; then
+            echo "No available iPhone simulator found." >&2
+            exit 1
+          fi
+
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
+          echo "simulator_id=$simulator_id" >> "$GITHUB_OUTPUT"
+
+      - name: Run package tests
+        run: |
+          simulator_id="${{ steps.settings.outputs.simulator_id }}"
+          destination="platform=iOS Simulator,id=${simulator_id}"
+
+          xcodebuild test \
+            -scheme "${{ steps.settings.outputs.scheme }}" \
+            -destination "$destination" \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-test-results
+          path: TestResults.xcresult
+          if-no-files-found: ignore
