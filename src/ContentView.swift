@@ -149,7 +149,7 @@ struct ContentView: View {
                 return
             }
 
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
 
             guard !Task.isCancelled, panel != .configuration else {
                 return
@@ -420,7 +420,7 @@ private struct ConfigurationPanel: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 10) {
                 Label("Configuration", systemImage: "slider.horizontal.3")
                     .font(.system(.title3, design: .rounded, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.94))
@@ -486,10 +486,10 @@ private struct ConfigurationPanel: View {
                 )
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 24)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 18)
         .frame(maxWidth: 380, alignment: .leading)
-        .frame(maxHeight: 620)
+        .frame(maxHeight: 660)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 32, style: .continuous)
@@ -510,7 +510,7 @@ private struct ConfigurationSlider: View {
     let accent: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
                     .font(.system(.callout, design: .rounded, weight: .semibold))
@@ -532,7 +532,8 @@ private struct ConfigurationSlider: View {
             Slider(value: $value, in: range, step: step)
                 .tint(accent)
         }
-        .padding(16)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
