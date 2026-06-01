@@ -134,7 +134,10 @@ jobs:
                     )
                 ] as $devices
                 | (
-                    ($devices | map(select(.name | test("^iPhone 16"))) | .[0])
+                    ($devices | map(select(.name == "iPhone 13 mini")) | .[0])
+                    // ($devices | map(select(.name == "iPhone 12 mini")) | .[0])
+                    // ($devices | map(select(.name | test("^iPhone SE"))) | .[0])
+                    // ($devices | map(select(.name | test("^iPhone 16"))) | .[0])
                     // (
                       $devices
                       | map(select(.name | test("^iPhone 15")))
@@ -221,7 +224,10 @@ jobs:
                     )
                 ] as $devices
                 | (
-                    ($devices | map(select(.name | test("^iPhone 16"))) | .[0])
+                    ($devices | map(select(.name == "iPhone 13 mini")) | .[0])
+                    // ($devices | map(select(.name == "iPhone 12 mini")) | .[0])
+                    // ($devices | map(select(.name | test("^iPhone SE"))) | .[0])
+                    // ($devices | map(select(.name | test("^iPhone 16"))) | .[0])
                     // (
                       $devices
                       | map(select(.name | test("^iPhone 15")))
@@ -298,8 +304,7 @@ jobs:
           screenshots_dir="app-smoke-screenshots"
           logs_dir="$RUNNER_TEMP/app-smoke-logs"
           results="$RUNNER_TEMP/app-smoke-results.tsv"
-          initial_delay_seconds="1"
-          transition_delay_seconds="0.75"
+          launch_delay_seconds="1"
 
           rm -rf "$screenshots_dir"
           mkdir -p "$screenshots_dir"
@@ -324,14 +329,22 @@ jobs:
             return 1
           }
 
-          capture_current_mode() {
+          capture_mode() {
             local mode="$1"
             local title="$2"
             local file="$screenshots_dir/$mode.png"
+            local launch_log="$logs_dir/$mode-launch.txt"
             local result="passed"
 
-            if ! capture_screenshot "$file"; then
+            if SIMCTL_CHILD_MEDITATION_ANIMATION_MODE="$mode" \
+              xcrun simctl launch --terminate-running-process "$simulator_id" "$bundle_id" > "$launch_log" 2>&1; then
+              sleep "$launch_delay_seconds"
+              if ! capture_screenshot "$file"; then
+                result="failed"
+              fi
+            else
               result="failed"
+              cat "$launch_log" >&2 || true
             fi
 
             write_result "$title" "$result"
@@ -341,48 +354,19 @@ jobs:
             fi
           }
 
-          open_mode() {
-            local mode="$1"
-            local title="$2"
-            local open_log="$logs_dir/$mode-openurl.txt"
-
-            if xcrun simctl openurl "$simulator_id" "testapp://panel/$mode" > "$open_log" 2>&1; then
-              sleep "$transition_delay_seconds"
-              capture_current_mode "$mode" "$title"
-            else
-              cat "$open_log" >&2 || true
-              write_result "$title" "failed"
-              return 1
-            fi
-          }
-
           overall=0
-          launch_log="$logs_dir/app-launch.txt"
-
-          if SIMCTL_CHILD_MEDITATION_ANIMATION_MODE="config" \
-            xcrun simctl launch "$simulator_id" "$bundle_id" > "$launch_log" 2>&1; then
-            sleep "$initial_delay_seconds"
-            capture_current_mode "config" "Configuration" || overall=1
-            open_mode "breathing-horizon" "Breathing horizon" || overall=1
-            open_mode "silk-ribbon" "Silk ribbon" || overall=1
-            open_mode "ink-bloom" "Ink bloom" || overall=1
-            open_mode "soft-glow" "Soft glow" || overall=1
-          else
-            overall=1
-            cat "$launch_log" >&2 || true
-            write_result "Configuration" "failed"
-            write_result "Breathing horizon" "failed"
-            write_result "Silk ribbon" "failed"
-            write_result "Ink bloom" "failed"
-            write_result "Soft glow" "failed"
-          fi
+          capture_mode "config" "Configuration" || overall=1
+          capture_mode "breathing-horizon" "Breathing horizon" || overall=1
+          capture_mode "silk-ribbon" "Silk ribbon" || overall=1
+          capture_mode "ink-bloom" "Ink bloom" || overall=1
+          capture_mode "soft-glow" "Soft glow" || overall=1
 
           xcrun simctl terminate "$simulator_id" "$bundle_id" || true
 
           {
             echo "# App launch smoke report"
             echo
-            echo "The app is launched once, then each panel is opened through a smoke URL."
+            echo "Each panel is launched directly through \`SIMCTL_CHILD_MEDITATION_ANIMATION_MODE\`."
             echo
             echo "Screenshots are uploaded as flat PNG files in the \`app-smoke-screenshots\` artifact."
             echo

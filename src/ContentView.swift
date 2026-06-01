@@ -62,6 +62,7 @@ struct ContentView: View {
             let chromeContentStates = panelContentStates(for: activeTransition)
             let chromeIsVisible = panel == .configuration || chromeVisible || activeTransition != nil
             let switcherSelection = panelSwitcherSelection(for: activeTransition)
+            let chromeHorizontalPadding = max(12, min(22, width * 0.04))
 
             ZStack {
                 MeditationScene(
@@ -106,7 +107,7 @@ struct ContentView: View {
                 .opacity(chromeIsVisible ? 1 : 0)
                 .allowsHitTesting(panel == .configuration || chromeVisible)
                 .accessibilityHidden(!chromeIsVisible)
-                .padding(.horizontal, 22)
+                .padding(.horizontal, chromeHorizontalPadding)
                 .padding(.top, 18)
                 .padding(.bottom, 24)
             }
@@ -261,12 +262,12 @@ struct ContentView: View {
         settlingPanelTransition = transition
         revealChromeTemporarily()
 
-        withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.88, blendDuration: 0.08)) {
+        withAnimation(.easeOut(duration: 0.28)) {
             settlingPanelTransition = transition.withProgress(endProgress)
         }
 
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 340_000_000)
+            try? await Task.sleep(nanoseconds: 300_000_000)
 
             guard panelTransitionToken == token else {
                 return
@@ -547,6 +548,63 @@ private enum PanelSwipeDirection: Equatable {
             -1
         }
     }
+
+    var incomingFadeEdge: SceneFadeEdge {
+        switch self {
+        case .previous:
+            .trailing
+        case .next:
+            .leading
+        }
+    }
+
+    var outgoingFadeEdge: SceneFadeEdge {
+        switch self {
+        case .previous:
+            .leading
+        case .next:
+            .trailing
+        }
+    }
+}
+
+private enum SceneFadeEdge: Equatable {
+    case leading
+    case trailing
+}
+
+private struct SceneEdgeFadeMask: View {
+    let edge: SceneFadeEdge?
+    let strength: CGFloat
+
+    var body: some View {
+        if let edge, strength > 0.001 {
+            LinearGradient(
+                stops: stops(edge: edge, strength: max(0.02, min(0.36, strength))),
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        } else {
+            Color.white
+        }
+    }
+
+    private func stops(edge: SceneFadeEdge, strength: CGFloat) -> [Gradient.Stop] {
+        switch edge {
+        case .leading:
+            [
+                .init(color: .clear, location: 0),
+                .init(color: .white, location: strength),
+                .init(color: .white, location: 1),
+            ]
+        case .trailing:
+            [
+                .init(color: .white, location: 0),
+                .init(color: .white, location: 1 - strength),
+                .init(color: .clear, location: 1),
+            ]
+        }
+    }
 }
 
 private enum PanelTransitionStyle: Equatable {
@@ -596,7 +654,7 @@ private struct MeditationScene: View {
                 let progress = transition?.progress ?? 0
                 let sign = transition?.direction.sign ?? 0
                 let baseMode = transition?.fromMode ?? mode
-                let parallax = transition?.style == .button ? min(width * 0.035, 18) : min(width * 0.075, 34)
+                let parallax = transition?.style == .button ? 0 : min(width * 0.075, 34)
 
                 ZStack {
                     MeditationVisualLayer(
@@ -607,16 +665,28 @@ private struct MeditationScene: View {
                     )
                     .offset(x: sign * progress * parallax)
                     .opacity(1 - Double(progress))
+                    .mask {
+                        SceneEdgeFadeMask(
+                            edge: transition?.direction.outgoingFadeEdge,
+                            strength: transition?.style == .swipe ? progress * 0.16 : 0
+                        )
+                    }
 
                     if let transition {
                         MeditationVisualLayer(
-                        mode: transition.toMode,
-                        snapshot: snapshot,
-                        time: time,
-                        reduceMotion: true
-                    )
+                            mode: transition.toMode,
+                            snapshot: snapshot,
+                            time: time,
+                            reduceMotion: reduceMotion
+                        )
                         .offset(x: -transition.direction.sign * (1 - transition.progress) * parallax)
                         .opacity(Double(transition.progress))
+                        .mask {
+                            SceneEdgeFadeMask(
+                                edge: transition.direction.incomingFadeEdge,
+                                strength: transition.style == .swipe ? (1 - transition.progress) * 0.22 : 0
+                            )
+                        }
                     }
                 }
                 .clipped()
@@ -833,7 +903,7 @@ private struct ConfigurationPanel: View {
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 18)
-        .frame(maxWidth: 380, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .frame(maxHeight: 660)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
         .overlay(
@@ -875,6 +945,8 @@ private struct ConfigurationSlider: View {
                 Text(title)
                     .font(.system(.callout, design: .rounded, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.88))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
 
                 Spacer()
 
@@ -882,6 +954,8 @@ private struct ConfigurationSlider: View {
                     .font(.system(.callout, design: .rounded, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(.white.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.74)
             }
 
             Slider(value: $value, in: range, step: step)
@@ -991,20 +1065,13 @@ private struct PanelSwitcher: View {
                 Button {
                     onSelect(panel)
                 } label: {
-                    HStack(spacing: 7) {
+                    ZStack {
                         panelIcon(panel)
-                            .frame(width: 14, height: 14)
+                            .frame(width: 16, height: 16)
                             .shadow(color: panel.accent.opacity(panel == selection ? 0.9 : 0.0), radius: 7)
-
-                        if panel == selection {
-                            Text(panel.shortTitle)
-                                .font(.system(.caption, design: .rounded, weight: .semibold))
-                                .lineLimit(1)
-                        }
                     }
                     .foregroundStyle(.white.opacity(panel == selection ? 0.92 : 0.56))
-                    .frame(minWidth: 44, minHeight: 44)
-                    .padding(.horizontal, panel == selection ? 12 : 9)
+                    .frame(width: 48, height: 44)
                     .background(
                         Capsule()
                             .fill(.white.opacity(panel == selection ? 0.14 : 0.07))
@@ -1021,7 +1088,7 @@ private struct PanelSwitcher: View {
                 .accessibilityHint(panel == selection ? "Current panel" : "Switches the meditation panel")
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 8)
         .padding(.vertical, 8)
         .background(.black.opacity(0.16), in: Capsule())
     }
@@ -1036,7 +1103,7 @@ private struct PanelSwitcher: View {
         case .breathingHorizon, .silkRibbon, .inkBloom, .softGlow:
             Circle()
                 .fill(panel.accent)
-                .frame(width: 7, height: 7)
+                .frame(width: panel == selection ? 8 : 7, height: panel == selection ? 8 : 7)
         }
     }
 }

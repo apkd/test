@@ -96,9 +96,9 @@ struct BreathingTimelineTests {
 
     @Test
     func hapticTimingDefaultIsRemappedIntoAsymmetricRange() {
-        #expect(abs(MeditationSettings.hapticCurveTimingRange.lowerBound - -0.90) < 0.000_001)
+        #expect(abs(MeditationSettings.hapticCurveTimingRange.lowerBound + 0.90) < 0.000_001)
         #expect(abs(MeditationSettings.hapticCurveTimingRange.upperBound - 0.55) < 0.000_001)
-        #expect(abs(MeditationSettings.defaultHapticCurveTiming - -0.45) < 0.000_001)
+        #expect(abs(MeditationSettings.defaultHapticCurveTiming + 0.45) < 0.000_001)
         #expect(abs(MeditationSettings.defaultHapticCurveTimingPosition - 45.0 / 145.0) < 0.000_001)
     }
 
