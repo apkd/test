@@ -207,19 +207,15 @@ struct BreathingTimelineTests {
     }
 
     @Test
-    func appURLCanSelectSmokeTestPanels() throws {
-        #expect(MeditationPanel.urlScheme == "testapp")
+    func smokeControlCanSelectPanels() {
         #expect(MeditationAnimationMode.smokeControlEnvironmentKey == "MEDITATION_SMOKE_CONTROL_FILE")
         #expect(MeditationAnimationMode.smokeControlFileName == "meditation-smoke-panel.txt")
-        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://panel/config"))) == .configuration)
-        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://screen/breathing-horizon"))) == .breathingHorizon)
-        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://mode/silk-ribbon"))) == .silkRibbon)
-        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://smoke/ink-bloom"))) == .inkBloom)
-        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://smoke/soft-glow"))) == .softGlow)
         #expect(MeditationPanel.smokeControlPanel("config\n") == .configuration)
+        #expect(MeditationPanel.smokeControlPanel("breathing-horizon") == .breathingHorizon)
+        #expect(MeditationPanel.smokeControlPanel("silk-ribbon") == .silkRibbon)
+        #expect(MeditationPanel.smokeControlPanel("ink-bloom") == .inkBloom)
         #expect(MeditationPanel.smokeControlPanel("soft-glow") == .softGlow)
-        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://panel/unknown"))) == nil)
-        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "other://panel/config"))) == nil)
+        #expect(MeditationPanel.smokeControlPanel("unknown") == nil)
     }
 
     @Test

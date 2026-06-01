@@ -486,12 +486,18 @@ enum MeditationRenderer {
             }
         }
 
-        for index in 0..<(reduceMotion ? 120 : 220) {
+        drawSubtleNoise(in: &context, size: size, count: reduceMotion ? 120 : 220)
+    }
+
+    private static func drawSubtleNoise(
+        in context: inout GraphicsContext,
+        size: CGSize,
+        count: Int
+    ) {
+        for index in 0..<count {
             let n0 = pseudoNoise(index * 73 + 17)
             let n1 = pseudoNoise(index * 73 + 31)
             let n2 = pseudoNoise(index * 73 + 59)
-            let x = width * n0
-            let y = height * n1
             let radius = 0.45 + 0.85 * n2
             let alpha = 0.006 + 0.012 * Double(pseudoNoise(index * 73 + 83))
             let color = index.isMultiple(of: 2)
@@ -499,7 +505,7 @@ enum MeditationRenderer {
                 : Color.black.opacity(alpha * 0.65)
 
             context.fill(
-                Path(ellipseIn: CGRect(x: x, y: y, width: radius, height: radius)),
+                Path(ellipseIn: CGRect(x: size.width * n0, y: size.height * n1, width: radius, height: radius)),
                 with: .color(color)
             )
         }

@@ -53,19 +53,6 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
         }
     }
 
-    var instruction: String {
-        switch self {
-        case .silkRibbon:
-            "Follow the ribbon as it gathers and releases."
-        case .breathingHorizon:
-            "Let the horizon lift, then settle."
-        case .inkBloom:
-            "Watch the breath diffuse through quiet water."
-        case .softGlow:
-            "Rest with a quiet moving glow."
-        }
-    }
-
     var accent: Color {
         switch self {
         case .silkRibbon:
@@ -97,8 +84,6 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
     case inkBloom
     case softGlow
 
-    static let urlScheme = "testapp"
-
     var id: Int { rawValue }
 
     var title: String {
@@ -116,21 +101,6 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
         }
     }
 
-    var shortTitle: String {
-        switch self {
-        case .configuration:
-            "Config"
-        case .breathingHorizon:
-            MeditationAnimationMode.breathingHorizon.shortTitle
-        case .silkRibbon:
-            MeditationAnimationMode.silkRibbon.shortTitle
-        case .inkBloom:
-            MeditationAnimationMode.inkBloom.shortTitle
-        case .softGlow:
-            MeditationAnimationMode.softGlow.shortTitle
-        }
-    }
-
     var animationMode: MeditationAnimationMode? {
         switch self {
         case .configuration:
@@ -144,10 +114,6 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
         case .softGlow:
             .softGlow
         }
-    }
-
-    var accent: Color {
-        animationMode?.accent ?? Color(red: 0.80, green: 0.86, blue: 1.0)
     }
 
     var next: MeditationPanel? {
@@ -201,25 +167,6 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
         }
 
         return panel(matching: rawValue)
-    }
-
-    static func appURLPanel(_ url: URL) -> MeditationPanel? {
-        guard url.scheme?.lowercased() == urlScheme else {
-            return nil
-        }
-
-        let ignoredPathComponents: Set<String> = ["panel", "screen", "mode", "smoke"]
-        let candidates = ([url.host].compactMap(\.self) + url.pathComponents)
-            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased() }
-            .filter { !$0.isEmpty && !ignoredPathComponents.contains($0) }
-
-        for candidate in candidates {
-            if let panel = panel(matching: candidate) {
-                return panel
-            }
-        }
-
-        return nil
     }
 
     static func smokeControlPanel(_ rawValue: String) -> MeditationPanel? {
