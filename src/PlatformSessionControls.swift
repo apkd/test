@@ -64,7 +64,10 @@ private final class BackgroundAudioKeepalive {
 
             buffer.frameLength = frameCount
             if let channel = buffer.floatChannelData?[0] {
-                channel.initialize(repeating: 0, count: Int(frameCount))
+                for frame in 0..<Int(frameCount) {
+                    let phase = Double(frame) / 44_100 * 2 * Double.pi * 180
+                    channel[frame] = Float(sin(phase) * 0.00008)
+                }
             }
 
             player.scheduleBuffer(buffer, at: nil, options: .loops)

@@ -13,9 +13,25 @@ final class BreathHapticCoordinator: ObservableObject {
     #if os(iOS)
     private var generator: UIImpactFeedbackGenerator?
     private var coreHapticEngine: CHHapticEngine?
+    private var advancedPlayer: CHHapticAdvancedPatternPlayer?
+    private var patternSignature: HapticPatternSignature?
+    private var latestTimeline: BreathingTimeline?
+    private var patternReferenceDate: Date?
     #endif
 
+    func startLoopingPattern(for timeline: BreathingTimeline, elapsed: TimeInterval) {
+        #if os(iOS)
+        startCoreHapticLoop(for: timeline, elapsed: elapsed)
+        #endif
+    }
+
     func update(with snapshot: BreathingSnapshot, at date: Date) {
+        #if os(iOS)
+        guard advancedPlayer == nil else {
+            return
+        }
+        #endif
+
         for event in scheduler.update(with: snapshot, at: date) {
             switch event {
             case .inhaleStarted:
@@ -33,6 +49,11 @@ final class BreathHapticCoordinator: ObservableObject {
 
         #if os(iOS)
         generator = nil
+        try? advancedPlayer?.stop(atTime: CHHapticTimeImmediate)
+        advancedPlayer = nil
+        patternSignature = nil
+        latestTimeline = nil
+        patternReferenceDate = nil
         stopCoreHaptics()
         #endif
     }
@@ -76,11 +97,13 @@ final class BreathHapticCoordinator: ObservableObject {
                 engine.stoppedHandler = { [weak self] _ in
                     Task { @MainActor in
                         self?.coreHapticEngine = nil
+                        self?.advancedPlayer = nil
+                        self?.patternSignature = nil
                     }
                 }
                 engine.resetHandler = { [weak self] in
                     Task { @MainActor in
-                        _ = self?.ensureCoreHapticsStarted()
+                        self?.restartCoreHapticLoopAfterReset()
                     }
                 }
                 coreHapticEngine = engine
@@ -92,6 +115,101 @@ final class BreathHapticCoordinator: ObservableObject {
             coreHapticEngine = nil
             return false
         }
+    }
+
+    private func startCoreHapticLoop(for timeline: BreathingTimeline, elapsed: TimeInterval) {
+        latestTimeline = timeline
+        patternReferenceDate = Date().addingTimeInterval(-elapsed)
+
+        let signature = HapticPatternSignature(timeline: timeline)
+        guard signature.isEnabled else {
+            try? advancedPlayer?.stop(atTime: CHHapticTimeImmediate)
+            advancedPlayer = nil
+            patternSignature = signature
+            return
+        }
+
+        guard patternSignature != signature || advancedPlayer == nil else {
+            return
+        }
+
+        try? advancedPlayer?.stop(atTime: CHHapticTimeImmediate)
+        advancedPlayer = nil
+        patternSignature = signature
+
+        guard ensureCoreHapticsStarted(), let coreHapticEngine else {
+            return
+        }
+
+        do {
+            let pattern = try makeBreathPattern(timeline: timeline)
+            let player = try coreHapticEngine.makeAdvancedPlayer(with: pattern)
+            player.loopEnabled = true
+            player.loopEnd = timeline.cycleDuration
+            try player.seek(toOffset: max(0, elapsed).truncatingRemainder(dividingBy: timeline.cycleDuration))
+            try player.start(atTime: CHHapticTimeImmediate)
+            advancedPlayer = player
+            scheduler.stop()
+            generator = nil
+        } catch {
+            advancedPlayer = nil
+            patternSignature = nil
+        }
+    }
+
+    private func restartCoreHapticLoopAfterReset() {
+        guard let latestTimeline else {
+            return
+        }
+
+        let elapsed = patternReferenceDate.map { Date().timeIntervalSince($0) } ?? 0
+        advancedPlayer = nil
+        patternSignature = nil
+        coreHapticEngine = nil
+        startCoreHapticLoop(for: latestTimeline, elapsed: elapsed)
+    }
+
+    private func makeBreathPattern(timeline: BreathingTimeline) throws -> CHHapticPattern {
+        var events: [CHHapticEvent] = []
+        let startSnapshot = timeline.snapshot(elapsed: 0)
+
+        if startSnapshot.hapticIntensityScale > 0 {
+            events.append(transientEvent(relativeTime: 0, intensity: HapticPulseScheduler.inhaleStartPulseIntensity * startSnapshot.hapticIntensityScale))
+        }
+
+        let step = 1.0 / 120.0
+        var elapsed = step
+        var accumulator = 0.0
+        var previousElapsed = 0.0
+
+        while elapsed < timeline.cycleDuration * 0.5 {
+            let snapshot = timeline.snapshot(elapsed: elapsed)
+            let delta = elapsed - previousElapsed
+            previousElapsed = elapsed
+            accumulator += delta * snapshot.hapticPulsesPerSecond
+
+            while accumulator >= 1 {
+                accumulator -= 1
+                let intensity = HapticPulseScheduler.minimumPulseIntensity
+                    + (HapticPulseScheduler.maximumPulseIntensity - HapticPulseScheduler.minimumPulseIntensity) * snapshot.hapticRate
+                events.append(transientEvent(relativeTime: elapsed, intensity: intensity * snapshot.hapticIntensityScale))
+            }
+
+            elapsed += step
+        }
+
+        return try CHHapticPattern(events: events, parameters: [])
+    }
+
+    private func transientEvent(relativeTime: TimeInterval, intensity: Double) -> CHHapticEvent {
+        CHHapticEvent(
+            eventType: .hapticTransient,
+            parameters: [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: Float(max(0, min(1, intensity)))),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.34),
+            ],
+            relativeTime: relativeTime
+        )
     }
 
     private func playCorePulse(intensity: Double) -> Bool {
@@ -123,6 +241,26 @@ final class BreathHapticCoordinator: ObservableObject {
     }
     #endif
 }
+
+#if os(iOS)
+private struct HapticPatternSignature: Equatable {
+    let breathsPerMinute: Double
+    let peakHapticPulsesPerSecond: Double
+    let hapticIntensity: Double
+    let hapticFrequency: Double
+
+    var isEnabled: Bool {
+        hapticIntensity > 0
+    }
+
+    init(timeline: BreathingTimeline) {
+        breathsPerMinute = timeline.breathsPerMinute
+        peakHapticPulsesPerSecond = timeline.peakHapticPulsesPerSecond
+        hapticIntensity = timeline.hapticIntensity
+        hapticFrequency = timeline.hapticFrequency
+    }
+}
+#endif
 
 enum HapticPulseEvent: Equatable {
     case inhaleStarted

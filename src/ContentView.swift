@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var chromeVisible = true
     @State private var chromeFadeToken = 0
     @StateObject private var haptics = BreathHapticCoordinator()
+    @StateObject private var diagnostics = FrameDiagnosticsSampler()
 
     private var panel: MeditationPanel {
         MeditationPanel(rawValue: panelRawValue) ?? .breathingHorizon
@@ -48,11 +49,28 @@ struct ContentView: View {
         let activeMode = activeAnimationMode
 
         ZStack {
-            MeditationScene(mode: activeMode, startedAt: startedAt, timeline: timeline, reduceMotion: reduceMotion)
+            MeditationScene(
+                mode: activeMode,
+                startedAt: startedAt,
+                timeline: timeline,
+                reduceMotion: reduceMotion,
+                diagnostics: diagnostics
+            )
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .gesture(swipeGesture)
                 .simultaneousGesture(TapGesture().onEnded { revealChromeTemporarily() })
+
+            VStack {
+                DiagnosticsOverlay(snapshot: diagnostics.snapshot)
+                    .padding(.top, 14)
+                    .padding(.leading, 14)
+
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
 
             VStack {
                 Spacer()
@@ -65,7 +83,7 @@ struct ContentView: View {
                     )
                         .padding(.bottom, 16)
                 } else {
-                    TimelineView(.animation) { context in
+                    TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
                         BreathCaption(
                             mode: activeMode,
                             snapshot: timeline.snapshot(at: context.date, startedAt: startedAt)
@@ -91,17 +109,22 @@ struct ContentView: View {
 
             startedAt = Date().addingTimeInterval(-BreathingTimeline.initialElapsedOffset)
             updateMeditationActive(true)
+            haptics.startLoopingPattern(for: timeline, elapsed: BreathingTimeline.initialElapsedOffset)
             revealChromeTemporarily()
         }
         .task(id: hapticsLoopID) {
             await runHapticsLoop(startedAt: startedAt, settings: settings)
+        }
+        .onChange(of: settings) { _, newSettings in
+            let elapsed = Date().timeIntervalSince(startedAt)
+            haptics.startLoopingPattern(for: newSettings.timeline, elapsed: elapsed)
         }
         .task(id: chromeFadeToken) {
             guard panel != .configuration else {
                 return
             }
 
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
 
             guard !Task.isCancelled, panel != .configuration else {
                 return
@@ -193,11 +216,16 @@ private struct MeditationScene: View {
     let startedAt: Date
     let timeline: BreathingTimeline
     let reduceMotion: Bool
+    @ObservedObject var diagnostics: FrameDiagnosticsSampler
 
     var body: some View {
-        TimelineView(.animation) { context in
+        TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
             let snapshot = timeline.snapshot(at: context.date, startedAt: startedAt)
             let time = context.date.timeIntervalSinceReferenceDate
+
+            let _ = Task { @MainActor in
+                diagnostics.recordFrame(at: context.date)
+            }
 
             ZStack {
                 AmbientBackground(mode: mode, snapshot: snapshot, reduceMotion: reduceMotion)
@@ -207,6 +235,48 @@ private struct MeditationScene: View {
                     .id(mode)
             }
             .animation(.easeInOut(duration: 0.5), value: mode)
+        }
+    }
+}
+
+private struct DiagnosticsOverlay: View {
+    let snapshot: FrameDiagnosticsSnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(String(format: "FPS %.1f / %.0f", snapshot.framesPerSecond, snapshot.targetFramesPerSecond))
+            Text(String(format: "Frame %.1f ms", snapshot.frameMilliseconds))
+
+            if let cpuUsagePercent = snapshot.cpuUsagePercent {
+                Text(String(format: "CPU %.0f%%", cpuUsagePercent))
+            } else {
+                Text("CPU n/a")
+            }
+
+            Text("Thermal \(snapshot.thermalState.diagnosticTitle)")
+            Text(snapshot.isLowPowerModeEnabled ? "Low power on" : "Low power off")
+        }
+        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+        .foregroundStyle(.white.opacity(0.76))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background(.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+private extension ProcessInfo.ThermalState {
+    var diagnosticTitle: String {
+        switch self {
+        case .nominal:
+            "nominal"
+        case .fair:
+            "fair"
+        case .serious:
+            "serious"
+        case .critical:
+            "critical"
+        @unknown default:
+            "unknown"
         }
     }
 }
@@ -297,10 +367,6 @@ private struct ConfigurationPanel: View {
                 Label("Configuration", systemImage: "slider.horizontal.3")
                     .font(.system(.title3, design: .rounded, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.94))
-
-                Text("Tune the breathing loop and haptic strength.")
-                    .font(.system(.subheadline, design: .rounded, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.68))
             }
 
             ConfigurationSlider(
