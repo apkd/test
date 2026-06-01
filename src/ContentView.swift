@@ -175,6 +175,9 @@ struct ContentView: View {
         .task {
             await runDiagnosticsLoop()
         }
+        .task {
+            await runSmokeControlLoopIfNeeded()
+        }
         .onChange(of: settings) { oldSettings, newSettings in
             preserveBreathPhaseIfNeeded(from: oldSettings, to: newSettings)
         }
@@ -330,6 +333,41 @@ struct ContentView: View {
         while !Task.isCancelled {
             diagnostics.refresh()
             try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+    }
+
+    private func runSmokeControlLoopIfNeeded() async {
+        guard ProcessInfo.processInfo.environment[MeditationAnimationMode.smokeControlEnvironmentKey] == "1",
+              let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+
+        let controlURL = documentsURL.appendingPathComponent(MeditationAnimationMode.smokeControlFileName)
+        var lastRawValue = ""
+
+        while !Task.isCancelled {
+            if let rawValue = try? String(contentsOf: controlURL, encoding: .utf8),
+               rawValue != lastRawValue,
+               let panel = MeditationPanel.smokeControlPanel(rawValue) {
+                lastRawValue = rawValue
+                applySmokeControlPanel(panel)
+            }
+
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
+
+    private func applySmokeControlPanel(_ panel: MeditationPanel) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+
+        withTransaction(transaction) {
+            if panel == .configuration {
+                presentConfiguration(animated: false)
+            } else {
+                dismissConfiguration(animated: false)
+                setPanel(panel, reveal: true)
+            }
         }
     }
 

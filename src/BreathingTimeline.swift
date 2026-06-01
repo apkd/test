@@ -9,6 +9,8 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
 
     static let defaultMode: MeditationAnimationMode = .breathingHorizon
     static let launchEnvironmentKey = "MEDITATION_ANIMATION_MODE"
+    static let smokeControlEnvironmentKey = "MEDITATION_SMOKE_CONTROL_FILE"
+    static let smokeControlFileName = "meditation-smoke-panel.txt"
 
     var id: Int { rawValue }
 
@@ -218,6 +220,10 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
         }
 
         return nil
+    }
+
+    static func smokeControlPanel(_ rawValue: String) -> MeditationPanel? {
+        panel(matching: rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
     }
 
     private static func panel(matching rawValue: String) -> MeditationPanel? {
