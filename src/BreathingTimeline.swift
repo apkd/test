@@ -117,7 +117,7 @@ struct BreathingTimeline {
     static let initialElapsedOffset: TimeInterval = 0.35
 
     var breathsPerMinute: Double = 7
-    var peakHapticPulsesPerSecond: Double = 1.7
+    var peakHapticPulsesPerSecond: Double = 2.8
 
     var cycleDuration: TimeInterval {
         60 / breathsPerMinute

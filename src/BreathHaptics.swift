@@ -21,7 +21,7 @@ final class BreathHapticCoordinator: ObservableObject {
             case .inhaleEnded:
                 endInhale()
             case let .pulse(intensity):
-                playSoftPulse(intensity: intensity)
+                playPulse(intensity: intensity)
             }
         }
     }
@@ -36,7 +36,7 @@ final class BreathHapticCoordinator: ObservableObject {
 
     private func beginInhale() {
         #if os(iOS)
-        generator = UIImpactFeedbackGenerator(style: .soft)
+        generator = UIImpactFeedbackGenerator(style: .medium)
         generator?.prepare()
         #endif
     }
@@ -47,7 +47,7 @@ final class BreathHapticCoordinator: ObservableObject {
         #endif
     }
 
-    private func playSoftPulse(intensity: Double) {
+    private func playPulse(intensity: Double) {
         #if os(iOS)
         generator?.impactOccurred(intensity: CGFloat(max(0, min(1, intensity))))
         generator?.prepare()
@@ -62,6 +62,10 @@ enum HapticPulseEvent: Equatable {
 }
 
 struct HapticPulseScheduler {
+    static let inhaleStartPulseIntensity = 0.72
+    static let minimumPulseIntensity = 0.55
+    static let maximumPulseIntensity = 1.0
+
     private(set) var isInhaling = false
     private var lastUpdate: Date?
     private var pulseAccumulator = 0.0
@@ -85,6 +89,7 @@ struct HapticPulseScheduler {
             isInhaling = true
             pulseAccumulator = 0
             events.append(.inhaleStarted)
+            events.append(.pulse(intensity: Self.inhaleStartPulseIntensity))
         }
 
         guard snapshot.hapticPulsesPerSecond > 0 else {
@@ -101,7 +106,9 @@ struct HapticPulseScheduler {
         }
 
         pulseAccumulator.formTruncatingRemainder(dividingBy: 1)
-        events.append(.pulse(intensity: 0.16 + 0.22 * snapshot.hapticRate))
+        let intensity = Self.minimumPulseIntensity
+            + (Self.maximumPulseIntensity - Self.minimumPulseIntensity) * snapshot.hapticRate
+        events.append(.pulse(intensity: intensity))
         return events
     }
 

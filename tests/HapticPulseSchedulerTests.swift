@@ -15,13 +15,16 @@ struct HapticPulseSchedulerTests {
             at: startDate.addingTimeInterval(timeline.cycleDuration * 0.5)
         )
 
-        #expect(startEvents == [.inhaleStarted])
+        #expect(startEvents == [
+            .inhaleStarted,
+            .pulse(intensity: HapticPulseScheduler.inhaleStartPulseIntensity),
+        ])
         #expect(exhaleEvents == [.inhaleEnded])
         #expect(scheduler.isInhaling == false)
     }
 
     @Test
-    func schedulerEmitsSoftSparsePulsesDuringInhaleOnly() {
+    func schedulerEmitsNoticeablePulsesDuringInhaleOnly() {
         let timeline = BreathingTimeline()
         let startDate = Date(timeIntervalSinceReferenceDate: 2_000)
         var scheduler = HapticPulseScheduler()
@@ -39,8 +42,8 @@ struct HapticPulseSchedulerTests {
 
             for event in events {
                 if case let .pulse(intensity) = event {
-                    #expect(intensity >= 0.16)
-                    #expect(intensity <= 0.38)
+                    #expect(intensity >= HapticPulseScheduler.minimumPulseIntensity)
+                    #expect(intensity <= HapticPulseScheduler.maximumPulseIntensity)
 
                     if elapsed < inhaleDuration {
                         pulseCount += 1
