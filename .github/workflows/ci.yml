@@ -315,7 +315,7 @@ jobs:
           capture_current_mode() {
             local file_name="$1"
             local title="$2"
-            local file="$screenshots_dir/$file_name.png"
+            local file="$screenshots_dir/${{ matrix.artifact_suffix }}-$file_name.png"
             local result="passed"
 
             if ! capture_screenshot "$file"; then
