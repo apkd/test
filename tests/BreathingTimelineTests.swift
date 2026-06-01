@@ -12,6 +12,9 @@ struct BreathingTimelineTests {
         #expect(BreathingTimeline.initialElapsedOffset < timeline.cycleDuration * 0.25)
         #expect(initialSnapshot.phase == .inhale)
         #expect(initialSnapshot.hapticRate > 0)
+        #expect(initialSnapshot.hapticIntensity == MeditationSettings.defaultHapticIntensity)
+        #expect(initialSnapshot.hapticIntensityScale == 1)
+        #expect(initialSnapshot.hapticFrequency == MeditationSettings.defaultHapticFrequency)
     }
 
     @Test
@@ -45,6 +48,7 @@ struct BreathingTimelineTests {
         #expect(earlyInhale.hapticPulsesPerSecond < inhalePeak.hapticPulsesPerSecond)
         #expect(lateInhale.hapticPulsesPerSecond < inhalePeak.hapticPulsesPerSecond)
         #expect(abs(earlyInhale.hapticPulsesPerSecond - lateInhale.hapticPulsesPerSecond) < 0.000_001)
+        #expect(abs(inhalePeak.hapticPulsesPerSecond - 20) < 0.000_001)
     }
 
     @Test
@@ -54,17 +58,40 @@ struct BreathingTimelineTests {
 
         #expect(inhalePeak.hapticRate > 0)
         #expect(inhalePeak.hapticIntensity == 0)
+        #expect(inhalePeak.hapticIntensityScale == 0)
         #expect(inhalePeak.hapticPulsesPerSecond == 0)
     }
 
     @Test
+    func hapticIntensityDefaultMatchesPreviousBaselineAndCanDoubleIt() {
+        let baseline = BreathingTimeline(hapticIntensity: 0.5).snapshot(elapsed: 1)
+        let doubled = BreathingTimeline(hapticIntensity: 1).snapshot(elapsed: 1)
+
+        #expect(baseline.hapticIntensityScale == 1)
+        #expect(doubled.hapticIntensityScale == 2)
+    }
+
+    @Test
+    func hapticFrequencyControlsPulseRate() {
+        let quiet = BreathingTimeline(hapticFrequency: 0)
+        let defaultFrequency = BreathingTimeline(hapticFrequency: 0.5)
+        let maximum = BreathingTimeline(hapticFrequency: 1)
+
+        #expect(quiet.snapshot(elapsed: quiet.cycleDuration * 0.25).hapticPulsesPerSecond == 0)
+        #expect(abs(defaultFrequency.snapshot(elapsed: defaultFrequency.cycleDuration * 0.25).hapticPulsesPerSecond - 20) < 0.000_001)
+        #expect(abs(maximum.snapshot(elapsed: maximum.cycleDuration * 0.25).hapticPulsesPerSecond - 40) < 0.000_001)
+    }
+
+    @Test
     func meditationSettingsBuildsConfiguredTimeline() {
-        let settings = MeditationSettings(breathsPerMinute: 9.5, hapticIntensity: 0.4)
+        let settings = MeditationSettings(breathsPerMinute: 9.5, hapticIntensity: 0.4, hapticFrequency: 0.25)
         let timeline = settings.timeline
         let inhalePeak = timeline.snapshot(elapsed: timeline.cycleDuration * 0.25)
 
         #expect(abs(timeline.cycleDuration - 60.0 / 9.5) < 0.000_001)
         #expect(abs(inhalePeak.hapticIntensity - 0.4) < 0.000_001)
+        #expect(abs(inhalePeak.hapticIntensityScale - 0.8) < 0.000_001)
+        #expect(abs(inhalePeak.hapticPulsesPerSecond - 10) < 0.000_001)
     }
 
     @Test
@@ -116,14 +143,12 @@ struct BreathingTimelineTests {
     }
 
     @Test
-    func animationModesCycleForSwipeNavigation() {
-        #expect(MeditationAnimationMode.silkRibbon.next == .breathingHorizon)
-        #expect(MeditationAnimationMode.breathingHorizon.next == .inkBloom)
-        #expect(MeditationAnimationMode.inkBloom.next == .silkRibbon)
-
-        #expect(MeditationAnimationMode.silkRibbon.previous == .inkBloom)
-        #expect(MeditationAnimationMode.breathingHorizon.previous == .silkRibbon)
-        #expect(MeditationAnimationMode.inkBloom.previous == .breathingHorizon)
+    func animationModeOrderIsStable() {
+        #expect(MeditationAnimationMode.allCases == [
+            .silkRibbon,
+            .breathingHorizon,
+            .inkBloom,
+        ])
     }
 
     @Test
@@ -138,7 +163,20 @@ struct BreathingTimelineTests {
         #expect(MeditationPanel.launchPanel(environment: [
             MeditationAnimationMode.launchEnvironmentKey: "config",
         ]) == .configuration)
+        #expect(MeditationPanel.launchOverride(environment: [:]) == nil)
         #expect(MeditationPanel.breathingHorizon.next == .silkRibbon)
-        #expect(MeditationPanel.inkBloom.next == .configuration)
+        #expect(MeditationPanel.configuration.previous == nil)
+        #expect(MeditationPanel.inkBloom.next == nil)
+        #expect(MeditationPanel.silkRibbon.previous == .breathingHorizon)
+        #expect(MeditationPanel.silkRibbon.next == .inkBloom)
+    }
+
+    @Test
+    func persistenceKeysAreStable() {
+        #expect(MeditationPersistenceKey.panelRawValue == "meditation.panel.rawValue")
+        #expect(MeditationPersistenceKey.lastAnimationModeRawValue == "meditation.lastAnimationMode.rawValue")
+        #expect(MeditationPersistenceKey.breathsPerMinute == "meditation.breathsPerMinute")
+        #expect(MeditationPersistenceKey.hapticIntensity == "meditation.hapticIntensity")
+        #expect(MeditationPersistenceKey.hapticFrequency == "meditation.hapticFrequency")
     }
 }

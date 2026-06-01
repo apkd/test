@@ -29,7 +29,7 @@ struct HapticPulseSchedulerTests {
         let startDate = Date(timeIntervalSinceReferenceDate: 2_000)
         var scheduler = HapticPulseScheduler()
         let inhaleDuration = timeline.cycleDuration * 0.5
-        let expectedPulseUpperBound = Int(timeline.peakHapticPulsesPerSecond * timeline.cycleDuration / Double.pi) + 2
+        let expectedPulseUpperBound = Int(timeline.peakHapticPulsesPerSecond * timeline.hapticFrequency * timeline.cycleDuration / Double.pi) + 3
         var pulseCount = 0
         var exhalePulseCount = 0
 
@@ -57,6 +57,30 @@ struct HapticPulseSchedulerTests {
         #expect(pulseCount > 0)
         #expect(pulseCount <= expectedPulseUpperBound)
         #expect(exhalePulseCount == 0)
+    }
+
+    @Test
+    func schedulerCanEmitMultiplePulsesForOneLargeUpdate() {
+        let timeline = BreathingTimeline(hapticFrequency: 1)
+        let startDate = Date(timeIntervalSinceReferenceDate: 2_500)
+        let peakElapsed = timeline.cycleDuration * 0.25
+        var scheduler = HapticPulseScheduler()
+
+        _ = scheduler.update(with: timeline.snapshot(elapsed: peakElapsed), at: startDate)
+        let events = scheduler.update(
+            with: timeline.snapshot(elapsed: peakElapsed + 0.1),
+            at: startDate.addingTimeInterval(0.1)
+        )
+
+        let pulseCount = events.reduce(0) { count, event in
+            if case .pulse = event {
+                return count + 1
+            }
+
+            return count
+        }
+
+        #expect(pulseCount >= 2)
     }
 
     @Test
@@ -93,5 +117,24 @@ struct HapticPulseSchedulerTests {
         }
 
         #expect(pulseCount == 0)
+    }
+
+    @Test
+    func schedulerKeepsOpeningPulseWhenFrequencyIsZero() {
+        let timeline = BreathingTimeline(hapticFrequency: 0)
+        let startDate = Date(timeIntervalSinceReferenceDate: 5_000)
+        var scheduler = HapticPulseScheduler()
+
+        let startEvents = scheduler.update(with: timeline.snapshot(elapsed: 0), at: startDate)
+        let laterEvents = scheduler.update(
+            with: timeline.snapshot(elapsed: 0.5),
+            at: startDate.addingTimeInterval(0.5)
+        )
+
+        #expect(startEvents == [
+            .inhaleStarted,
+            .pulse(intensity: HapticPulseScheduler.inhaleStartPulseIntensity),
+        ])
+        #expect(laterEvents == [])
     }
 }

@@ -160,7 +160,7 @@ struct HapticPulseScheduler {
         }
 
         var events: [HapticPulseEvent] = []
-        let hapticsEnabled = snapshot.hapticIntensity > 0
+        let hapticsEnabled = snapshot.hapticIntensityScale > 0
 
         if !isInhaling {
             isInhaling = true
@@ -169,7 +169,7 @@ struct HapticPulseScheduler {
             if hapticsEnabled {
                 isHapticSessionActive = true
                 events.append(.inhaleStarted)
-                events.append(.pulse(intensity: Self.inhaleStartPulseIntensity * snapshot.hapticIntensity))
+                events.append(.pulse(intensity: Self.inhaleStartPulseIntensity * snapshot.hapticIntensityScale))
             }
         }
 
@@ -182,14 +182,14 @@ struct HapticPulseScheduler {
         lastUpdate = date
         pulseAccumulator += delta * snapshot.hapticPulsesPerSecond
 
-        guard pulseAccumulator >= 1 else {
-            return events
-        }
-
-        pulseAccumulator.formTruncatingRemainder(dividingBy: 1)
         let intensity = Self.minimumPulseIntensity
             + (Self.maximumPulseIntensity - Self.minimumPulseIntensity) * snapshot.hapticRate
-        events.append(.pulse(intensity: intensity * snapshot.hapticIntensity))
+
+        while pulseAccumulator >= 1 {
+            pulseAccumulator -= 1
+            events.append(.pulse(intensity: intensity * snapshot.hapticIntensityScale))
+        }
+
         return events
     }
 

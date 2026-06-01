@@ -66,14 +66,6 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
         }
     }
 
-    var next: MeditationAnimationMode {
-        MeditationAnimationMode(rawValue: (rawValue + 1) % Self.allCases.count) ?? .silkRibbon
-    }
-
-    var previous: MeditationAnimationMode {
-        MeditationAnimationMode(rawValue: (rawValue + Self.allCases.count - 1) % Self.allCases.count) ?? .inkBloom
-    }
-
     static func launchMode(environment: [String: String] = ProcessInfo.processInfo.environment) -> MeditationAnimationMode {
         guard let rawValue = environment[launchEnvironmentKey]?.lowercased() else {
             return defaultMode
@@ -136,12 +128,12 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
         animationMode?.accent ?? Color(red: 0.80, green: 0.86, blue: 1.0)
     }
 
-    var next: MeditationPanel {
-        MeditationPanel(rawValue: (rawValue + 1) % Self.allCases.count) ?? .configuration
+    var next: MeditationPanel? {
+        MeditationPanel(rawValue: rawValue + 1)
     }
 
-    var previous: MeditationPanel {
-        MeditationPanel(rawValue: (rawValue + Self.allCases.count - 1) % Self.allCases.count) ?? .inkBloom
+    var previous: MeditationPanel? {
+        MeditationPanel(rawValue: rawValue - 1)
     }
 
     static func panel(for mode: MeditationAnimationMode) -> MeditationPanel {
@@ -156,26 +148,49 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
     }
 
     static func launchPanel(environment: [String: String] = ProcessInfo.processInfo.environment) -> MeditationPanel {
-        if let rawValue = environment[MeditationAnimationMode.launchEnvironmentKey]?.lowercased(),
-           rawValue == "configuration" || rawValue == "config" {
+        launchOverride(environment: environment) ?? panel(for: MeditationAnimationMode.launchMode(environment: environment))
+    }
+
+    static func launchOverride(environment: [String: String] = ProcessInfo.processInfo.environment) -> MeditationPanel? {
+        guard let rawValue = environment[MeditationAnimationMode.launchEnvironmentKey]?.lowercased() else {
+            return nil
+        }
+
+        if rawValue == "configuration" || rawValue == "config" {
             return .configuration
         }
 
-        return panel(for: MeditationAnimationMode.launchMode(environment: environment))
+        return allCases.first { panel in
+            panel.animationMode.map { rawValue == $0.launchValue || rawValue == $0.shortTitle.lowercased() } ?? false
+        }
     }
 }
 
+enum MeditationPersistenceKey {
+    static let panelRawValue = "meditation.panel.rawValue"
+    static let lastAnimationModeRawValue = "meditation.lastAnimationMode.rawValue"
+    static let breathsPerMinute = "meditation.breathsPerMinute"
+    static let hapticIntensity = "meditation.hapticIntensity"
+    static let hapticFrequency = "meditation.hapticFrequency"
+}
+
 struct MeditationSettings: Equatable {
+    static let defaultBreathsPerMinute = 7.0
+    static let defaultHapticIntensity = 0.5
+    static let defaultHapticFrequency = 0.5
     static let breathsPerMinuteRange: ClosedRange<Double> = 4...12
     static let hapticIntensityRange: ClosedRange<Double> = 0...1
+    static let hapticFrequencyRange: ClosedRange<Double> = 0...1
 
-    var breathsPerMinute: Double = 7
-    var hapticIntensity: Double = 1
+    var breathsPerMinute: Double = defaultBreathsPerMinute
+    var hapticIntensity: Double = defaultHapticIntensity
+    var hapticFrequency: Double = defaultHapticFrequency
 
     var timeline: BreathingTimeline {
         BreathingTimeline(
             breathsPerMinute: breathsPerMinute,
-            hapticIntensity: hapticIntensity
+            hapticIntensity: hapticIntensity,
+            hapticFrequency: hapticFrequency
         )
     }
 }
@@ -204,6 +219,8 @@ struct BreathingSnapshot: Equatable {
     let breathAmount: Double
     let hapticRate: Double
     let hapticIntensity: Double
+    let hapticIntensityScale: Double
+    let hapticFrequency: Double
     let hapticPulsesPerSecond: Double
 
     var isInhale: Bool { phase == .inhale }
@@ -213,8 +230,9 @@ struct BreathingTimeline {
     static let initialElapsedOffset: TimeInterval = 0.35
 
     var breathsPerMinute: Double = 7
-    var peakHapticPulsesPerSecond: Double = 5.0
-    var hapticIntensity: Double = 1
+    var peakHapticPulsesPerSecond: Double = 40.0
+    var hapticIntensity: Double = MeditationSettings.defaultHapticIntensity
+    var hapticFrequency: Double = MeditationSettings.defaultHapticFrequency
 
     var cycleDuration: TimeInterval {
         60 / breathsPerMinute
@@ -235,7 +253,11 @@ struct BreathingTimeline {
         let breathAmount = isInhale ? easedPhaseProgress : 1 - easedPhaseProgress
         let hapticRate = isInhale ? max(0, sine) : 0
         let clampedHapticIntensity = max(0, min(1, hapticIntensity))
-        let hapticPulsesPerSecond = clampedHapticIntensity > 0 ? peakHapticPulsesPerSecond * hapticRate : 0
+        let clampedHapticFrequency = max(0, min(1, hapticFrequency))
+        let hapticIntensityScale = clampedHapticIntensity * 2
+        let hapticPulsesPerSecond = clampedHapticIntensity > 0
+            ? peakHapticPulsesPerSecond * clampedHapticFrequency * hapticRate
+            : 0
 
         return BreathingSnapshot(
             elapsed: safeElapsed,
@@ -247,6 +269,8 @@ struct BreathingTimeline {
             breathAmount: breathAmount,
             hapticRate: hapticRate,
             hapticIntensity: clampedHapticIntensity,
+            hapticIntensityScale: hapticIntensityScale,
+            hapticFrequency: clampedHapticFrequency,
             hapticPulsesPerSecond: hapticPulsesPerSecond
         )
     }

@@ -5,16 +5,35 @@ import SwiftUI
 struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    @AppStorage(MeditationPersistenceKey.panelRawValue) private var panelRawValue = MeditationPanel.breathingHorizon.rawValue
+    @AppStorage(MeditationPersistenceKey.lastAnimationModeRawValue) private var lastAnimationModeRawValue = MeditationAnimationMode.breathingHorizon.rawValue
+    @AppStorage(MeditationPersistenceKey.breathsPerMinute) private var breathsPerMinute = MeditationSettings.defaultBreathsPerMinute
+    @AppStorage(MeditationPersistenceKey.hapticIntensity) private var hapticIntensity = MeditationSettings.defaultHapticIntensity
+    @AppStorage(MeditationPersistenceKey.hapticFrequency) private var hapticFrequency = MeditationSettings.defaultHapticFrequency
+
     @State private var startedAt = Date()
-    @State private var panel = MeditationPanel.launchPanel()
-    @State private var currentMode = MeditationAnimationMode.launchMode()
-    @State private var settings = MeditationSettings()
     @State private var chromeVisible = true
     @State private var chromeFadeToken = 0
     @StateObject private var haptics = BreathHapticCoordinator()
 
+    private var panel: MeditationPanel {
+        MeditationPanel(rawValue: panelRawValue) ?? .breathingHorizon
+    }
+
+    private var currentMode: MeditationAnimationMode {
+        MeditationAnimationMode(rawValue: lastAnimationModeRawValue) ?? .breathingHorizon
+    }
+
     private var timeline: BreathingTimeline {
         settings.timeline
+    }
+
+    private var settings: MeditationSettings {
+        MeditationSettings(
+            breathsPerMinute: clamped(breathsPerMinute, to: MeditationSettings.breathsPerMinuteRange),
+            hapticIntensity: clamped(hapticIntensity, to: MeditationSettings.hapticIntensityRange),
+            hapticFrequency: clamped(hapticFrequency, to: MeditationSettings.hapticFrequencyRange)
+        )
     }
 
     private var activeAnimationMode: MeditationAnimationMode {
@@ -31,26 +50,32 @@ struct ContentView: View {
         ZStack {
             MeditationScene(mode: activeMode, startedAt: startedAt, timeline: timeline, reduceMotion: reduceMotion)
                 .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .gesture(swipeGesture)
+                .simultaneousGesture(TapGesture().onEnded { revealChromeTemporarily() })
 
             VStack {
-                topLabel
-
                 Spacer()
 
                 if panel == .configuration {
-                    ConfigurationPanel(settings: $settings)
+                    ConfigurationPanel(
+                        breathsPerMinute: $breathsPerMinute,
+                        hapticIntensity: $hapticIntensity,
+                        hapticFrequency: $hapticFrequency
+                    )
                         .padding(.bottom, 16)
                 } else {
                     TimelineView(.animation) { context in
                         BreathCaption(
                             mode: activeMode,
-                            snapshot: timeline.snapshot(at: context.date, startedAt: startedAt),
-                            reduceMotion: reduceMotion
+                            snapshot: timeline.snapshot(at: context.date, startedAt: startedAt)
                         )
                     }
                 }
 
-                PanelSwitcher(selection: $panel)
+                PanelSwitcher(selection: panel) { selectedPanel in
+                    setPanel(selectedPanel)
+                }
             }
             .opacity(panel == .configuration || chromeVisible ? 1 : 0)
             .allowsHitTesting(panel == .configuration || chromeVisible)
@@ -59,12 +84,12 @@ struct ContentView: View {
             .padding(.top, 18)
             .padding(.bottom, 24)
         }
-        .contentShape(Rectangle())
-        .gesture(swipeGesture)
-        .simultaneousGesture(TapGesture().onEnded { revealChromeTemporarily() })
         .onAppear {
+            if let launchOverride = MeditationPanel.launchOverride() {
+                setPanel(launchOverride, reveal: false)
+            }
+
             startedAt = Date().addingTimeInterval(-BreathingTimeline.initialElapsedOffset)
-            updateCurrentMode(from: panel)
             updateMeditationActive(true)
             revealChromeTemporarily()
         }
@@ -87,22 +112,10 @@ struct ContentView: View {
             }
         }
         .onChange(of: panel) { _, newPanel in
-            updateCurrentMode(from: newPanel)
             revealChromeTemporarily()
         }
         .onDisappear {
             updateMeditationActive(false)
-        }
-    }
-
-    private var topLabel: some View {
-        HStack {
-            Label("Meditation", systemImage: "sparkles")
-                .font(.system(.caption, design: .rounded, weight: .medium))
-                .tracking(0.6)
-                .foregroundStyle(.white.opacity(0.68))
-
-            Spacer()
         }
     }
 
@@ -116,8 +129,12 @@ struct ContentView: View {
                     return
                 }
 
+                guard let nextPanel = horizontal < 0 ? panel.next : panel.previous else {
+                    return
+                }
+
                 withAnimation(.easeInOut(duration: 0.38)) {
-                    panel = horizontal < 0 ? panel.next : panel.previous
+                    setPanel(nextPanel)
                 }
             }
     }
@@ -134,9 +151,15 @@ struct ContentView: View {
         haptics.stop()
     }
 
-    private func updateCurrentMode(from panel: MeditationPanel) {
-        if let animationMode = panel.animationMode {
-            currentMode = animationMode
+    private func setPanel(_ newPanel: MeditationPanel, reveal: Bool = true) {
+        panelRawValue = newPanel.rawValue
+
+        if let animationMode = newPanel.animationMode {
+            lastAnimationModeRawValue = animationMode.rawValue
+        }
+
+        if reveal {
+            revealChromeTemporarily()
         }
     }
 
@@ -153,6 +176,10 @@ struct ContentView: View {
         if !active {
             haptics.stop()
         }
+    }
+
+    private func clamped(_ value: Double, to range: ClosedRange<Double>) -> Double {
+        min(max(value, range.lowerBound), range.upperBound)
     }
 }
 
@@ -260,7 +287,9 @@ private struct MeditationArtwork: View {
 }
 
 private struct ConfigurationPanel: View {
-    @Binding var settings: MeditationSettings
+    @Binding var breathsPerMinute: Double
+    @Binding var hapticIntensity: Double
+    @Binding var hapticFrequency: Double
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -276,9 +305,9 @@ private struct ConfigurationPanel: View {
 
             ConfigurationSlider(
                 title: "Breathing speed",
-                valueText: String(format: "%.1f bpm", settings.breathsPerMinute),
+                valueText: String(format: "%.1f bpm", breathsPerMinute),
                 systemImage: "wind",
-                value: $settings.breathsPerMinute,
+                value: $breathsPerMinute,
                 range: MeditationSettings.breathsPerMinuteRange,
                 step: 0.5,
                 accent: Color(red: 1.0, green: 0.74, blue: 0.49)
@@ -286,12 +315,22 @@ private struct ConfigurationPanel: View {
 
             ConfigurationSlider(
                 title: "Haptics intensity",
-                valueText: "\(Int((settings.hapticIntensity * 100).rounded()))%",
+                valueText: "\(Int((hapticIntensity * 100).rounded()))%",
                 systemImage: "waveform.path",
-                value: $settings.hapticIntensity,
+                value: $hapticIntensity,
                 range: MeditationSettings.hapticIntensityRange,
                 step: 0.05,
                 accent: Color(red: 0.72, green: 0.56, blue: 1.0)
+            )
+
+            ConfigurationSlider(
+                title: "Haptics frequency",
+                valueText: "\(Int((hapticFrequency * 100).rounded()))%",
+                systemImage: "dot.radiowaves.left.and.right",
+                value: $hapticFrequency,
+                range: MeditationSettings.hapticFrequencyRange,
+                step: 0.05,
+                accent: Color(red: 0.56, green: 0.86, blue: 1.0)
             )
         }
         .padding(.horizontal, 24)
@@ -352,48 +391,23 @@ private struct ConfigurationSlider: View {
 private struct BreathCaption: View {
     let mode: MeditationAnimationMode
     let snapshot: BreathingSnapshot
-    let reduceMotion: Bool
 
     var body: some View {
-        let breathOpacity = 0.74 + (reduceMotion ? 0.06 : 0.16) * snapshot.breathAmount
-        let inhaleOpacity = BreathingTimeline.smoothstep((snapshot.sine + 0.16) / 0.32)
-
-        VStack(spacing: 10) {
-            ZStack {
-                phaseText("Breathe out", opacity: (1 - inhaleOpacity) * breathOpacity)
-                phaseText("Breathe in", opacity: inhaleOpacity * breathOpacity)
-            }
-            .frame(height: 44)
-            .accessibilityLabel(snapshot.phase.title)
-
-            Text(mode.instruction)
-                .font(.system(.callout, design: .rounded, weight: .medium))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.white.opacity(0.70))
-                .frame(maxWidth: 330)
-
+        VStack {
             BreathWave(snapshot: snapshot, color: mode.accent)
-                .frame(width: 126, height: 20)
-                .padding(.top, 4)
+                .frame(width: 156, height: 28)
                 .accessibilityHidden(true)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(snapshot.phase.title). \(mode.title). \(mode.instruction)")
-        .padding(.horizontal, 28)
-        .padding(.vertical, 22)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .accessibilityLabel("\(snapshot.phase.title). Breath progress")
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(.white.opacity(0.12), lineWidth: 1)
         )
         .padding(.bottom, 16)
-    }
-
-    private func phaseText(_ text: String, opacity: Double) -> some View {
-        Text(text)
-            .font(.system(size: 36, weight: .light, design: .rounded))
-            .foregroundStyle(.white.opacity(opacity))
-            .shadow(color: mode.accent.opacity(0.22), radius: 16, y: 7)
     }
 }
 
@@ -453,14 +467,15 @@ private struct BreathWave: View {
 }
 
 private struct PanelSwitcher: View {
-    @Binding var selection: MeditationPanel
+    let selection: MeditationPanel
+    let onSelect: (MeditationPanel) -> Void
 
     var body: some View {
         HStack(spacing: 8) {
             ForEach(MeditationPanel.allCases) { panel in
                 Button {
                     withAnimation(.easeInOut(duration: 0.28)) {
-                        selection = panel
+                        onSelect(panel)
                     }
                 } label: {
                     HStack(spacing: 7) {
