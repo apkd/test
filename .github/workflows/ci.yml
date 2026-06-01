@@ -174,7 +174,7 @@ jobs:
           title: Package test results
           show-passed-tests: false
           show-code-coverage: false
-          upload: failure
+          upload: never
 
   app-launch-smoke:
     name: app launch smoke

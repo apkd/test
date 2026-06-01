@@ -18,6 +18,9 @@ struct ContentView: View {
     @State private var startedAt = Date()
     @State private var chromeVisible = true
     @State private var chromeFadeToken = 0
+    @State private var settlingSwipeTransition: PanelSwipeTransition?
+    @State private var swipeSettleToken = 0
+    @GestureState private var liveSwipeTranslation: CGFloat = 0
     @StateObject private var haptics = BreathHapticCoordinator()
     @StateObject private var diagnostics = FrameDiagnosticsSampler()
 
@@ -45,7 +48,7 @@ struct ContentView: View {
     }
 
     private var activeAnimationMode: MeditationAnimationMode {
-        panel.animationMode ?? currentMode
+        animationMode(for: panel)
     }
 
     private var hapticsLoopID: HapticsLoopID {
@@ -55,61 +58,74 @@ struct ContentView: View {
     var body: some View {
         let activeMode = activeAnimationMode
 
-        ZStack {
-            MeditationScene(
-                mode: activeMode,
-                startedAt: startedAt,
-                timeline: timeline,
-                reduceMotion: reduceMotion
-            )
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .gesture(swipeGesture)
-                .simultaneousGesture(TapGesture().onEnded { revealChromeTemporarily() })
-
-            VStack {
-                DiagnosticsOverlay(snapshot: diagnostics.snapshot)
-                    .padding(.top, 14)
-                    .padding(.leading, 14)
-
-                Spacer()
+        GeometryReader { geometry in
+            let width = max(1, geometry.size.width)
+            let activeTransition = swipeTransition(width: width)
+            let sceneTransition = activeTransition.map { transition in
+                MeditationSceneTransition(
+                    mode: animationMode(for: transition.toPanel),
+                    direction: transition.direction,
+                    progress: transition.progress
+                )
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
 
-            VStack {
-                Spacer()
+            ZStack {
+                MeditationScene(
+                    mode: activeMode,
+                    transition: sceneTransition,
+                    startedAt: startedAt,
+                    timeline: timeline,
+                    reduceMotion: reduceMotion
+                )
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .gesture(swipeGesture(width: width))
+                    .simultaneousGesture(TapGesture().onEnded { revealChromeTemporarily() })
 
-                if panel == .configuration {
-                    ConfigurationPanel(
-                        breathsPerMinute: $breathsPerMinute,
-                        hapticIntensity: $hapticIntensity,
-                        hapticFrequency: $hapticFrequency,
-                        hapticCurveSmoothBlend: $hapticCurveSmoothBlend,
-                        hapticCurvePeakBlend: $hapticCurvePeakBlend,
-                        hapticCurveEarlyBlend: $hapticCurveEarlyBlend
-                    )
-                        .padding(.bottom, 16)
-                } else {
-                    TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
-                        BreathCaption(
-                            mode: activeMode,
-                            snapshot: timeline.snapshot(at: context.date, startedAt: startedAt)
+                VStack {
+                    DiagnosticsOverlay(snapshot: diagnostics.snapshot)
+                        .padding(.top, 14)
+                        .padding(.leading, 14)
+
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
+                VStack {
+                    Spacer()
+
+                    if panel == .configuration {
+                        ConfigurationPanel(
+                            breathsPerMinute: $breathsPerMinute,
+                            hapticIntensity: $hapticIntensity,
+                            hapticFrequency: $hapticFrequency,
+                            hapticCurveSmoothBlend: $hapticCurveSmoothBlend,
+                            hapticCurvePeakBlend: $hapticCurvePeakBlend,
+                            hapticCurveEarlyBlend: $hapticCurveEarlyBlend
                         )
+                            .padding(.bottom, 16)
+                    } else {
+                        TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
+                            BreathCaption(
+                                mode: activeMode,
+                                snapshot: timeline.snapshot(at: context.date, startedAt: startedAt)
+                            )
+                        }
+                    }
+
+                    PanelSwitcher(selection: panel) { selectedPanel in
+                        setPanel(selectedPanel)
                     }
                 }
-
-                PanelSwitcher(selection: panel) { selectedPanel in
-                    setPanel(selectedPanel)
-                }
+                .opacity(panel == .configuration || chromeVisible ? 1 : 0)
+                .allowsHitTesting(panel == .configuration || chromeVisible)
+                .accessibilityHidden(panel != .configuration && !chromeVisible)
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+                .padding(.bottom, 24)
             }
-            .opacity(panel == .configuration || chromeVisible ? 1 : 0)
-            .allowsHitTesting(panel == .configuration || chromeVisible)
-            .accessibilityHidden(panel != .configuration && !chromeVisible)
-            .padding(.horizontal, 22)
-            .padding(.top, 18)
-            .padding(.bottom, 24)
         }
         .onAppear {
             if let launchOverride = MeditationPanel.launchOverride() {
@@ -167,24 +183,90 @@ struct ContentView: View {
         }
     }
 
-    private var swipeGesture: some Gesture {
+    private func swipeGesture(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 38)
-            .onEnded { value in
-                let horizontal = value.translation.width
-                let vertical = value.translation.height
-
-                guard abs(horizontal) > abs(vertical), abs(horizontal) > 44 else {
-                    return
-                }
-
-                guard let nextPanel = horizontal < 0 ? panel.next : panel.previous else {
-                    return
-                }
-
-                withAnimation(.easeInOut(duration: 0.38)) {
-                    setPanel(nextPanel)
-                }
+            .updating($liveSwipeTranslation) { value, state, transaction in
+                transaction.animation = nil
+                state = interactiveTranslation(for: value)
             }
+            .onEnded { value in
+                settleSwipe(value, width: width)
+            }
+    }
+
+    private func interactiveTranslation(for value: DragGesture.Value) -> CGFloat {
+        guard settlingSwipeTransition == nil else {
+            return 0
+        }
+
+        let horizontal = value.translation.width
+        let vertical = value.translation.height
+
+        guard abs(horizontal) > abs(vertical), abs(horizontal) > 8 else {
+            return 0
+        }
+
+        guard targetPanel(for: horizontal) != nil else {
+            return horizontal * 0.18
+        }
+
+        return horizontal
+    }
+
+    private func settleSwipe(_ value: DragGesture.Value, width: CGFloat) {
+        guard settlingSwipeTransition == nil else {
+            return
+        }
+
+        let horizontal = value.translation.width
+        let vertical = value.translation.height
+        let predictedHorizontal = value.predictedEndTranslation.width
+        let decisiveHorizontal = abs(predictedHorizontal) > abs(horizontal) ? predictedHorizontal : horizontal
+
+        guard abs(horizontal) > abs(vertical), abs(horizontal) > 18 else {
+            return
+        }
+
+        guard let targetPanel = targetPanel(for: decisiveHorizontal),
+              let direction = PanelSwipeDirection(translation: decisiveHorizontal) else {
+            revealChromeTemporarily()
+            return
+        }
+
+        let currentProgress = min(0.98, max(0, abs(horizontal) / max(width, 1)))
+        let predictedProgress = min(1, max(0, abs(predictedHorizontal) / max(width, 1)))
+        let shouldCommit = currentProgress >= 0.24 || predictedProgress >= 0.34 || abs(predictedHorizontal) > 180
+        let startingProgress = max(0.02, currentProgress)
+        let endProgress: CGFloat = shouldCommit ? 1 : 0
+        let transition = PanelSwipeTransition(
+            fromPanel: panel,
+            toPanel: targetPanel,
+            direction: direction,
+            progress: startingProgress
+        )
+        let token = swipeSettleToken + 1
+
+        swipeSettleToken = token
+        settlingSwipeTransition = transition
+        revealChromeTemporarily()
+
+        withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.88, blendDuration: 0.08)) {
+            settlingSwipeTransition = transition.withProgress(endProgress)
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 340_000_000)
+
+            guard swipeSettleToken == token else {
+                return
+            }
+
+            if shouldCommit {
+                setPanel(targetPanel)
+            }
+
+            settlingSwipeTransition = nil
+        }
     }
 
     private func runHapticsLoop(startedAt: Date, settings: MeditationSettings) async {
@@ -250,6 +332,40 @@ struct ContentView: View {
     private func clamped(_ value: Double, to range: ClosedRange<Double>) -> Double {
         min(max(value, range.lowerBound), range.upperBound)
     }
+
+    private func animationMode(for panel: MeditationPanel) -> MeditationAnimationMode {
+        panel.animationMode ?? currentMode
+    }
+
+    private func targetPanel(for translation: CGFloat) -> MeditationPanel? {
+        if translation < 0 {
+            return panel.next
+        }
+
+        if translation > 0 {
+            return panel.previous
+        }
+
+        return nil
+    }
+
+    private func swipeTransition(width: CGFloat) -> PanelSwipeTransition? {
+        if let settlingSwipeTransition {
+            return settlingSwipeTransition
+        }
+
+        guard let targetPanel = targetPanel(for: liveSwipeTranslation),
+              let direction = PanelSwipeDirection(translation: liveSwipeTranslation) else {
+            return nil
+        }
+
+        return PanelSwipeTransition(
+            fromPanel: panel,
+            toPanel: targetPanel,
+            direction: direction,
+            progress: min(0.98, max(0, abs(liveSwipeTranslation) / max(width, 1)))
+        )
+    }
 }
 
 private struct HapticsLoopID: Equatable {
@@ -258,25 +374,107 @@ private struct HapticsLoopID: Equatable {
     let sceneIsActive: Bool
 }
 
+private enum PanelSwipeDirection: Equatable {
+    case previous
+    case next
+
+    init?(translation: CGFloat) {
+        if translation < 0 {
+            self = .next
+        } else if translation > 0 {
+            self = .previous
+        } else {
+            return nil
+        }
+    }
+
+    var sign: CGFloat {
+        switch self {
+        case .previous:
+            1
+        case .next:
+            -1
+        }
+    }
+}
+
+private struct PanelSwipeTransition: Equatable {
+    let fromPanel: MeditationPanel
+    let toPanel: MeditationPanel
+    let direction: PanelSwipeDirection
+    let progress: CGFloat
+
+    func withProgress(_ progress: CGFloat) -> PanelSwipeTransition {
+        PanelSwipeTransition(
+            fromPanel: fromPanel,
+            toPanel: toPanel,
+            direction: direction,
+            progress: progress
+        )
+    }
+}
+
+private struct MeditationSceneTransition: Equatable {
+    let mode: MeditationAnimationMode
+    let direction: PanelSwipeDirection
+    let progress: CGFloat
+}
+
 private struct MeditationScene: View {
     let mode: MeditationAnimationMode
+    let transition: MeditationSceneTransition?
     let startedAt: Date
     let timeline: BreathingTimeline
     let reduceMotion: Bool
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
-            let snapshot = timeline.snapshot(at: context.date, startedAt: startedAt)
-            let time = context.date.timeIntervalSinceReferenceDate
+        GeometryReader { geometry in
+            TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
+                let snapshot = timeline.snapshot(at: context.date, startedAt: startedAt)
+                let time = context.date.timeIntervalSinceReferenceDate
+                let width = max(1, geometry.size.width)
+                let progress = transition?.progress ?? 0
+                let sign = transition?.direction.sign ?? 0
 
-            ZStack {
-                AmbientBackground(mode: mode, snapshot: snapshot, reduceMotion: reduceMotion)
+                ZStack {
+                    MeditationVisualLayer(
+                        mode: mode,
+                        snapshot: snapshot,
+                        time: time,
+                        reduceMotion: reduceMotion
+                    )
+                    .offset(x: sign * progress * width)
+                    .opacity(1 - 0.34 * progress)
 
-                MeditationArtwork(mode: mode, snapshot: snapshot, time: time, reduceMotion: reduceMotion)
-                    .transition(.opacity.combined(with: .scale(scale: 1.02)))
-                    .id(mode)
+                    if let transition {
+                        MeditationVisualLayer(
+                            mode: transition.mode,
+                            snapshot: snapshot,
+                            time: time,
+                            reduceMotion: reduceMotion
+                        )
+                        .offset(x: -transition.direction.sign * (1 - transition.progress) * width)
+                        .opacity(0.26 + 0.74 * transition.progress)
+                    }
+                }
+                .clipped()
+                .animation(.easeInOut(duration: 0.5), value: mode)
             }
-            .animation(.easeInOut(duration: 0.5), value: mode)
+        }
+    }
+}
+
+private struct MeditationVisualLayer: View {
+    let mode: MeditationAnimationMode
+    let snapshot: BreathingSnapshot
+    let time: TimeInterval
+    let reduceMotion: Bool
+
+    var body: some View {
+        ZStack {
+            AmbientBackground(mode: mode, snapshot: snapshot, reduceMotion: reduceMotion)
+
+            MeditationArtwork(mode: mode, snapshot: snapshot, time: time, reduceMotion: reduceMotion)
         }
     }
 }
