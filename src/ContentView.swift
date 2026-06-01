@@ -552,6 +552,11 @@ private struct BreathCaption: View {
             BreathWave(snapshot: snapshot, color: mode.accent)
                 .frame(width: 156, height: 28)
                 .accessibilityHidden(true)
+
+            Text(snapshot.phase.title)
+                .font(.system(.caption, design: .rounded, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.62))
+                .contentTransition(.opacity)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(snapshot.phase.title). Breath progress")
