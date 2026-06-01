@@ -1,24 +1,26 @@
 ---
-name: CI
+name: Build, test and release
 
 "on":
   pull_request:
   push:
     branches:
       - master
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   checks: write
   contents: read
 
 jobs:
-  xtool-build:
-    name: xtool build
+  build-ipa:
+    name: build IPA
     runs-on: macos-15
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -38,15 +40,41 @@ jobs:
       - name: Install xtool
         run: brew install xtool-org/tap/xtool
 
-      - name: Show xtool help
-        run: xtool --help
+      - name: Build unsigned IPA
+        run: xtool dev build --configuration release --ipa
 
-      - name: Build app
-        run: xtool dev build
+      - name: Prepare IPA artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ipa="$(
+            find xtool -type f -name '*.ipa' |
+            sort |
+            head -n 1
+          )"
+
+          if [[ -z "$ipa" ]]; then
+            echo "xtool did not produce an IPA." >&2
+            find xtool -maxdepth 3 -type f -print >&2 || true
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/release"
+          cp "$ipa" "$RUNNER_TEMP/release/TestApp.ipa"
+          ls -lh "$RUNNER_TEMP/release/TestApp.ipa"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestApp-ipa
+          path: ${{ runner.temp }}/release/TestApp.ipa
+          if-no-files-found: error
 
   package-tests:
     name: package tests
     runs-on: macos-15
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -147,3 +175,107 @@ jobs:
           show-passed-tests: false
           show-code-coverage: false
           upload: failure
+
+  release:
+    name: update rolling release
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    needs:
+      - build-ipa
+      - package-tests
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: TestApp-ipa
+          path: release-assets
+
+      - name: Prepare release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          notes="release-notes.md"
+          repo_url="https://github.com/${{ github.repository }}"
+          short_sha="${GITHUB_SHA::7}"
+
+          {
+            echo "This is a rolling prototype release. It is updated when the master CI pipeline passes."
+            echo
+            echo "Commit: [$short_sha]($repo_url/commit/$GITHUB_SHA)"
+            echo
+            echo "Included artifacts:"
+            echo "- TestApp.ipa"
+            echo
+            echo "Latest changes:"
+            echo
+            git log -n 12 --pretty='- %s ([%h]('"$repo_url"'/commit/%H))'
+          } > "$notes"
+
+          cat "$notes" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify release target
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch origin "$GITHUB_REF_NAME" --quiet
+          remote_sha="$(git rev-parse "origin/$GITHUB_REF_NAME")"
+          if [[ "$remote_sha" != "$GITHUB_SHA" ]]; then
+            echo "::notice::Remote branch '$GITHUB_REF_NAME' advanced from $GITHUB_SHA to $remote_sha; cancelling release."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Release skipped"
+              echo
+              echo "The branch no longer points to the workflow commit."
+              echo
+              echo "- Ref: \`$GITHUB_REF_NAME\`"
+              echo "- Workflow commit: \`$GITHUB_SHA\`"
+              echo "- Current tip: \`$remote_sha\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or update rolling release
+        if: steps.verify.outputs.changed == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="release"
+          title="Meditation prototype ($(date -u '+%d-%m-%Y'))"
+          notes="release-notes.md"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa "$tag" "$GITHUB_SHA" -m "Latest rolling release"
+          git push -f origin "refs/tags/$tag"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --title "$title" --notes-file "$notes" --latest
+          else
+            gh release create "$tag" --title "$title" --notes-file "$notes" --target "$GITHUB_SHA" --latest
+          fi
+
+          mapfile -t files < <(find release-assets -maxdepth 1 -type f | sort)
+          if [[ "${#files[@]}" -eq 0 ]]; then
+            echo "No release assets found." >&2
+            exit 1
+          fi
+
+          gh release upload "$tag" "${files[@]}" --clobber
