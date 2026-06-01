@@ -11,9 +11,9 @@ struct ContentView: View {
     @AppStorage(MeditationPersistenceKey.breathsPerMinute) private var breathsPerMinute = MeditationSettings.defaultBreathsPerMinute
     @AppStorage(MeditationPersistenceKey.hapticIntensity) private var hapticIntensity = MeditationSettings.defaultHapticIntensity
     @AppStorage(MeditationPersistenceKey.hapticFrequency) private var hapticFrequency = MeditationSettings.defaultHapticFrequency
-    @AppStorage(MeditationPersistenceKey.hapticCurveSmoothBlend) private var hapticCurveSmoothBlend = MeditationSettings.defaultHapticCurveSmoothBlend
-    @AppStorage(MeditationPersistenceKey.hapticCurvePeakBlend) private var hapticCurvePeakBlend = MeditationSettings.defaultHapticCurvePeakBlend
-    @AppStorage(MeditationPersistenceKey.hapticCurveEarlyBlend) private var hapticCurveEarlyBlend = MeditationSettings.defaultHapticCurveEarlyBlend
+    @AppStorage(MeditationPersistenceKey.hapticCurveTiming) private var hapticCurveTiming = MeditationSettings.defaultHapticCurveTiming
+    @AppStorage(MeditationPersistenceKey.hapticCurveFocus) private var hapticCurveFocus = MeditationSettings.defaultHapticCurveFocus
+    @AppStorage(MeditationPersistenceKey.hapticCurveFloor) private var hapticCurveFloor = MeditationSettings.defaultHapticCurveFloor
 
     @State private var startedAt = Date()
     @State private var chromeVisible = true
@@ -41,9 +41,9 @@ struct ContentView: View {
             breathsPerMinute: clamped(breathsPerMinute, to: MeditationSettings.breathsPerMinuteRange),
             hapticIntensity: clamped(hapticIntensity, to: MeditationSettings.hapticIntensityRange),
             hapticFrequency: clamped(hapticFrequency, to: MeditationSettings.hapticFrequencyRange),
-            hapticCurveSmoothBlend: clamped(hapticCurveSmoothBlend, to: MeditationSettings.hapticCurveBlendRange),
-            hapticCurvePeakBlend: clamped(hapticCurvePeakBlend, to: MeditationSettings.hapticCurveBlendRange),
-            hapticCurveEarlyBlend: clamped(hapticCurveEarlyBlend, to: MeditationSettings.hapticCurveBlendRange)
+            hapticCurveTiming: clamped(hapticCurveTiming, to: MeditationSettings.hapticCurveTimingRange),
+            hapticCurveFocus: clamped(hapticCurveFocus, to: MeditationSettings.hapticCurveControlRange),
+            hapticCurveFloor: clamped(hapticCurveFloor, to: MeditationSettings.hapticCurveControlRange)
         )
     }
 
@@ -63,7 +63,8 @@ struct ContentView: View {
             let activeTransition = swipeTransition(width: width)
             let sceneTransition = activeTransition.map { transition in
                 MeditationSceneTransition(
-                    mode: animationMode(for: transition.toPanel),
+                    fromMode: animationMode(for: transition.fromPanel),
+                    toMode: animationMode(for: transition.toPanel),
                     direction: transition.direction,
                     progress: transition.progress
                 )
@@ -101,9 +102,9 @@ struct ContentView: View {
                             breathsPerMinute: $breathsPerMinute,
                             hapticIntensity: $hapticIntensity,
                             hapticFrequency: $hapticFrequency,
-                            hapticCurveSmoothBlend: $hapticCurveSmoothBlend,
-                            hapticCurvePeakBlend: $hapticCurvePeakBlend,
-                            hapticCurveEarlyBlend: $hapticCurveEarlyBlend
+                            hapticCurveTiming: $hapticCurveTiming,
+                            hapticCurveFocus: $hapticCurveFocus,
+                            hapticCurveFloor: $hapticCurveFloor
                         )
                             .padding(.bottom, 16)
                     } else {
@@ -261,11 +262,20 @@ struct ContentView: View {
                 return
             }
 
-            if shouldCommit {
-                setPanel(targetPanel)
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+
+            withTransaction(transaction) {
+                if shouldCommit {
+                    setPanel(targetPanel, reveal: false)
+                }
+
+                settlingSwipeTransition = nil
             }
 
-            settlingSwipeTransition = nil
+            if shouldCommit {
+                revealChromeTemporarily()
+            }
         }
     }
 
@@ -415,7 +425,8 @@ private struct PanelSwipeTransition: Equatable {
 }
 
 private struct MeditationSceneTransition: Equatable {
-    let mode: MeditationAnimationMode
+    let fromMode: MeditationAnimationMode
+    let toMode: MeditationAnimationMode
     let direction: PanelSwipeDirection
     let progress: CGFloat
 }
@@ -435,10 +446,11 @@ private struct MeditationScene: View {
                 let width = max(1, geometry.size.width)
                 let progress = transition?.progress ?? 0
                 let sign = transition?.direction.sign ?? 0
+                let baseMode = transition?.fromMode ?? mode
 
                 ZStack {
                     MeditationVisualLayer(
-                        mode: mode,
+                        mode: baseMode,
                         snapshot: snapshot,
                         time: time,
                         reduceMotion: reduceMotion
@@ -448,7 +460,7 @@ private struct MeditationScene: View {
 
                     if let transition {
                         MeditationVisualLayer(
-                            mode: transition.mode,
+                            mode: transition.toMode,
                             snapshot: snapshot,
                             time: time,
                             reduceMotion: reduceMotion
@@ -458,7 +470,6 @@ private struct MeditationScene: View {
                     }
                 }
                 .clipped()
-                .animation(.easeInOut(duration: 0.5), value: mode)
             }
         }
     }
@@ -612,9 +623,9 @@ private struct ConfigurationPanel: View {
     @Binding var breathsPerMinute: Double
     @Binding var hapticIntensity: Double
     @Binding var hapticFrequency: Double
-    @Binding var hapticCurveSmoothBlend: Double
-    @Binding var hapticCurvePeakBlend: Double
-    @Binding var hapticCurveEarlyBlend: Double
+    @Binding var hapticCurveTiming: Double
+    @Binding var hapticCurveFocus: Double
+    @Binding var hapticCurveFloor: Double
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -654,31 +665,31 @@ private struct ConfigurationPanel: View {
                 )
 
                 ConfigurationSlider(
-                    title: "Smooth curve",
-                    valueText: "\(Int((hapticCurveSmoothBlend * 100).rounded()))%",
-                    systemImage: "scribble.variable",
-                    value: $hapticCurveSmoothBlend,
-                    range: MeditationSettings.hapticCurveBlendRange,
+                    title: "Pulse timing",
+                    valueText: timingText,
+                    systemImage: "arrow.left.and.right",
+                    value: $hapticCurveTiming,
+                    range: MeditationSettings.hapticCurveTimingRange,
                     step: 0.05,
                     accent: Color(red: 0.80, green: 0.92, blue: 1.0)
                 )
 
                 ConfigurationSlider(
-                    title: "Peak curve",
-                    valueText: "\(Int((hapticCurvePeakBlend * 100).rounded()))%",
-                    systemImage: "point.topleft.down.curvedto.point.bottomright.up",
-                    value: $hapticCurvePeakBlend,
-                    range: MeditationSettings.hapticCurveBlendRange,
+                    title: "Peak focus",
+                    valueText: "\(Int((hapticCurveFocus * 100).rounded()))%",
+                    systemImage: "scope",
+                    value: $hapticCurveFocus,
+                    range: MeditationSettings.hapticCurveControlRange,
                     step: 0.05,
                     accent: Color(red: 0.84, green: 0.66, blue: 1.0)
                 )
 
                 ConfigurationSlider(
-                    title: "Early curve",
-                    valueText: "\(Int((hapticCurveEarlyBlend * 100).rounded()))%",
-                    systemImage: "point.bottomleft.forward.to.point.topright.scurvepath",
-                    value: $hapticCurveEarlyBlend,
-                    range: MeditationSettings.hapticCurveBlendRange,
+                    title: "Pulse floor",
+                    valueText: "\(Int((hapticCurveFloor * 100).rounded()))%",
+                    systemImage: "water.waves",
+                    value: $hapticCurveFloor,
+                    range: MeditationSettings.hapticCurveControlRange,
                     step: 0.05,
                     accent: Color(red: 1.0, green: 0.68, blue: 0.58)
                 )
@@ -695,6 +706,16 @@ private struct ConfigurationPanel: View {
         )
         .shadow(color: .black.opacity(0.18), radius: 24, y: 18)
         .accessibilityElement(children: .contain)
+    }
+
+    private var timingText: String {
+        let percent = Int((abs(hapticCurveTiming) * 100).rounded())
+
+        if percent == 0 {
+            return "Centered"
+        }
+
+        return hapticCurveTiming < 0 ? "Early \(percent)%" : "Late \(percent)%"
     }
 }
 

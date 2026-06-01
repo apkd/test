@@ -172,38 +172,39 @@ enum MeditationPersistenceKey {
     static let breathsPerMinute = "meditation.breathsPerMinute"
     static let hapticIntensity = "meditation.hapticIntensity"
     static let hapticFrequency = "meditation.hapticFrequency"
-    static let hapticCurveSmoothBlend = "meditation.hapticCurve.smoothBlend"
-    static let hapticCurvePeakBlend = "meditation.hapticCurve.peakBlend"
-    static let hapticCurveEarlyBlend = "meditation.hapticCurve.earlyBlend"
+    static let hapticCurveTiming = "meditation.hapticCurve.timing"
+    static let hapticCurveFocus = "meditation.hapticCurve.focus"
+    static let hapticCurveFloor = "meditation.hapticCurve.floor"
 }
 
 struct MeditationSettings: Equatable {
     static let defaultBreathsPerMinute = 7.0
     static let defaultHapticIntensity = 0.5
     static let defaultHapticFrequency = 0.5
-    static let defaultHapticCurveSmoothBlend = 0.0
-    static let defaultHapticCurvePeakBlend = 0.0
-    static let defaultHapticCurveEarlyBlend = 0.0
+    static let defaultHapticCurveTiming = 0.0
+    static let defaultHapticCurveFocus = 0.0
+    static let defaultHapticCurveFloor = 0.0
     static let breathsPerMinuteRange: ClosedRange<Double> = 4...12
     static let hapticIntensityRange: ClosedRange<Double> = 0...1
     static let hapticFrequencyRange: ClosedRange<Double> = 0...1
-    static let hapticCurveBlendRange: ClosedRange<Double> = 0...1
+    static let hapticCurveTimingRange: ClosedRange<Double> = -1...1
+    static let hapticCurveControlRange: ClosedRange<Double> = 0...1
 
     var breathsPerMinute: Double = defaultBreathsPerMinute
     var hapticIntensity: Double = defaultHapticIntensity
     var hapticFrequency: Double = defaultHapticFrequency
-    var hapticCurveSmoothBlend: Double = defaultHapticCurveSmoothBlend
-    var hapticCurvePeakBlend: Double = defaultHapticCurvePeakBlend
-    var hapticCurveEarlyBlend: Double = defaultHapticCurveEarlyBlend
+    var hapticCurveTiming: Double = defaultHapticCurveTiming
+    var hapticCurveFocus: Double = defaultHapticCurveFocus
+    var hapticCurveFloor: Double = defaultHapticCurveFloor
 
     var timeline: BreathingTimeline {
         BreathingTimeline(
             breathsPerMinute: breathsPerMinute,
             hapticIntensity: hapticIntensity,
             hapticFrequency: hapticFrequency,
-            hapticCurveSmoothBlend: hapticCurveSmoothBlend,
-            hapticCurvePeakBlend: hapticCurvePeakBlend,
-            hapticCurveEarlyBlend: hapticCurveEarlyBlend
+            hapticCurveTiming: hapticCurveTiming,
+            hapticCurveFocus: hapticCurveFocus,
+            hapticCurveFloor: hapticCurveFloor
         )
     }
 }
@@ -241,16 +242,16 @@ struct BreathingSnapshot: Equatable {
 
 struct BreathingTimeline {
     static let initialElapsedOffset: TimeInterval = 0.35
-    static let peakCurveExponent = 3.5
-    static let earlyCurveExponent = 3.5
+    static let hapticCurveMaximumShift = 0.32
+    static let hapticCurveMaximumFloor = 0.65
 
     var breathsPerMinute: Double = 7
     var peakHapticPulsesPerSecond: Double = 40.0
     var hapticIntensity: Double = MeditationSettings.defaultHapticIntensity
     var hapticFrequency: Double = MeditationSettings.defaultHapticFrequency
-    var hapticCurveSmoothBlend: Double = MeditationSettings.defaultHapticCurveSmoothBlend
-    var hapticCurvePeakBlend: Double = MeditationSettings.defaultHapticCurvePeakBlend
-    var hapticCurveEarlyBlend: Double = MeditationSettings.defaultHapticCurveEarlyBlend
+    var hapticCurveTiming: Double = MeditationSettings.defaultHapticCurveTiming
+    var hapticCurveFocus: Double = MeditationSettings.defaultHapticCurveFocus
+    var hapticCurveFloor: Double = MeditationSettings.defaultHapticCurveFloor
 
     var cycleDuration: TimeInterval {
         60 / breathsPerMinute
@@ -270,7 +271,15 @@ struct BreathingTimeline {
         let easedPhaseProgress = Self.smoothstep(max(0, min(1, phaseProgress)))
         let breathAmount = isInhale ? easedPhaseProgress : 1 - easedPhaseProgress
         let baseHapticRate = isInhale ? max(0, sine) : 0
-        let hapticRate = isInhale ? processedHapticRate(baseHapticRate) : 0
+        let hapticRate = isInhale
+            ? Self.shapedHapticRate(
+                phaseProgress: phaseProgress,
+                baseRate: baseHapticRate,
+                timing: hapticCurveTiming,
+                focus: hapticCurveFocus,
+                floor: hapticCurveFloor
+            )
+            : 0
         let clampedHapticIntensity = max(0, min(1, hapticIntensity))
         let clampedHapticFrequency = max(0, min(1, hapticFrequency))
         let hapticIntensityScale = clampedHapticIntensity * 2
@@ -299,28 +308,26 @@ struct BreathingTimeline {
         return clamped * clamped * (3 - 2 * clamped)
     }
 
-    static func smootherstep(_ value: Double) -> Double {
-        let clamped = max(0, min(1, value))
-        return clamped * clamped * clamped * (clamped * (clamped * 6 - 15) + 10)
-    }
+    static func shapedHapticRate(
+        phaseProgress: Double,
+        baseRate: Double,
+        timing: Double,
+        focus: Double,
+        floor: Double
+    ) -> Double {
+        let phase = max(0, min(1, phaseProgress))
+        let base = max(0, min(1, baseRate))
+        let clampedTiming = max(-1, min(1, timing))
+        let clampedFocus = max(0, min(1, focus))
+        let clampedFloor = max(0, min(1, floor))
+        let center = 0.5 + hapticCurveMaximumShift * clampedTiming
+        let width = 0.50 - 0.34 * clampedFocus
+        let normalizedDistance = (phase - center) / width
+        let shiftedPeak = exp(-1.8 * normalizedDistance * normalizedDistance)
+        let shapedBlend = min(1, abs(clampedTiming) + clampedFocus)
+        let focusedRate = base * (1 - shapedBlend) + shiftedPeak * shapedBlend
+        let floorRate = hapticCurveMaximumFloor * clampedFloor
 
-    private func processedHapticRate(_ rate: Double) -> Double {
-        let clampedRate = max(0, min(1, rate))
-        let smoothBlend = max(0, min(1, hapticCurveSmoothBlend))
-        let peakBlend = max(0, min(1, hapticCurvePeakBlend))
-        let earlyBlend = max(0, min(1, hapticCurveEarlyBlend))
-        let smoothRate = Self.smootherstep(clampedRate)
-        let peakRate = pow(clampedRate, Self.peakCurveExponent)
-        let earlyRate = 1 - pow(1 - clampedRate, Self.earlyCurveExponent)
-        let totalBlend = smoothBlend + peakBlend + earlyBlend
-        let baseWeight = max(0, 1 - totalBlend)
-        let totalWeight = baseWeight + totalBlend
-
-        return (
-            baseWeight * clampedRate
-            + smoothBlend * smoothRate
-            + peakBlend * peakRate
-            + earlyBlend * earlyRate
-        ) / totalWeight
+        return min(1, max(0, floorRate + (1 - floorRate) * focusedRate))
     }
 }

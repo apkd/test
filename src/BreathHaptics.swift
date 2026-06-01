@@ -248,9 +248,9 @@ private struct HapticPatternSignature: Equatable {
     let peakHapticPulsesPerSecond: Double
     let hapticIntensity: Double
     let hapticFrequency: Double
-    let hapticCurveSmoothBlend: Double
-    let hapticCurvePeakBlend: Double
-    let hapticCurveEarlyBlend: Double
+    let hapticCurveTiming: Double
+    let hapticCurveFocus: Double
+    let hapticCurveFloor: Double
 
     var isEnabled: Bool {
         hapticIntensity > 0
@@ -261,9 +261,9 @@ private struct HapticPatternSignature: Equatable {
         peakHapticPulsesPerSecond = timeline.peakHapticPulsesPerSecond
         hapticIntensity = timeline.hapticIntensity
         hapticFrequency = timeline.hapticFrequency
-        hapticCurveSmoothBlend = timeline.hapticCurveSmoothBlend
-        hapticCurvePeakBlend = timeline.hapticCurvePeakBlend
-        hapticCurveEarlyBlend = timeline.hapticCurveEarlyBlend
+        hapticCurveTiming = timeline.hapticCurveTiming
+        hapticCurveFocus = timeline.hapticCurveFocus
+        hapticCurveFloor = timeline.hapticCurveFloor
     }
 }
 #endif
