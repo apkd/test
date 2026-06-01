@@ -5,6 +5,7 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
     case silkRibbon
     case breathingHorizon
     case inkBloom
+    case softGlow
 
     static let defaultMode: MeditationAnimationMode = .breathingHorizon
     static let launchEnvironmentKey = "MEDITATION_ANIMATION_MODE"
@@ -19,6 +20,8 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
             "Breathing horizon"
         case .inkBloom:
             "Ink bloom"
+        case .softGlow:
+            "Soft glow"
         }
     }
 
@@ -30,6 +33,8 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
             "Horizon"
         case .inkBloom:
             "Bloom"
+        case .softGlow:
+            "Glow"
         }
     }
 
@@ -41,6 +46,8 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
             "breathing-horizon"
         case .inkBloom:
             "ink-bloom"
+        case .softGlow:
+            "soft-glow"
         }
     }
 
@@ -52,6 +59,8 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
             "Let the horizon lift, then settle."
         case .inkBloom:
             "Watch the breath diffuse through quiet water."
+        case .softGlow:
+            "Rest with a quiet moving glow."
         }
     }
 
@@ -63,6 +72,8 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
             Color(red: 1.0, green: 0.74, blue: 0.49)
         case .inkBloom:
             Color(red: 0.72, green: 0.56, blue: 1.0)
+        case .softGlow:
+            Color(red: 0.58, green: 0.68, blue: 0.95)
         }
     }
 
@@ -82,6 +93,7 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
     case breathingHorizon
     case silkRibbon
     case inkBloom
+    case softGlow
 
     static let urlScheme = "testapp"
 
@@ -97,6 +109,8 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
             MeditationAnimationMode.silkRibbon.title
         case .inkBloom:
             MeditationAnimationMode.inkBloom.title
+        case .softGlow:
+            MeditationAnimationMode.softGlow.title
         }
     }
 
@@ -110,6 +124,8 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
             MeditationAnimationMode.silkRibbon.shortTitle
         case .inkBloom:
             MeditationAnimationMode.inkBloom.shortTitle
+        case .softGlow:
+            MeditationAnimationMode.softGlow.shortTitle
         }
     }
 
@@ -123,6 +139,8 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
             .silkRibbon
         case .inkBloom:
             .inkBloom
+        case .softGlow:
+            .softGlow
         }
     }
 
@@ -146,6 +164,8 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
             .breathingHorizon
         case .inkBloom:
             .inkBloom
+        case .softGlow:
+            .softGlow
         }
     }
 
@@ -198,38 +218,30 @@ enum MeditationPersistenceKey {
     static let hapticIntensity = "meditation.hapticIntensity"
     static let hapticFrequency = "meditation.hapticFrequency"
     static let hapticCurveTiming = "meditation.hapticCurve.timing"
-    static let hapticCurveFocus = "meditation.hapticCurve.focus"
-    static let hapticCurveFloor = "meditation.hapticCurve.floor"
 }
 
 struct MeditationSettings: Equatable {
     static let defaultBreathsPerMinute = 7.0
     static let defaultHapticIntensity = 0.5
     static let defaultHapticFrequency = 0.5
-    static let defaultHapticCurveTiming = 0.0
-    static let defaultHapticCurveFocus = 0.0
-    static let defaultHapticCurveFloor = 0.0
     static let breathsPerMinuteRange: ClosedRange<Double> = 4...12
     static let hapticIntensityRange: ClosedRange<Double> = 0...1
     static let hapticFrequencyRange: ClosedRange<Double> = 0...1
-    static let hapticCurveTimingRange: ClosedRange<Double> = -1...1
-    static let hapticCurveControlRange: ClosedRange<Double> = 0...1
+    static let hapticCurveTimingRange: ClosedRange<Double> = -0.90...0.55
+    static let defaultHapticCurveTiming = -0.45
+    static let defaultHapticCurveTimingPosition = (defaultHapticCurveTiming - hapticCurveTimingRange.lowerBound) / (hapticCurveTimingRange.upperBound - hapticCurveTimingRange.lowerBound)
 
     var breathsPerMinute: Double = defaultBreathsPerMinute
     var hapticIntensity: Double = defaultHapticIntensity
     var hapticFrequency: Double = defaultHapticFrequency
     var hapticCurveTiming: Double = defaultHapticCurveTiming
-    var hapticCurveFocus: Double = defaultHapticCurveFocus
-    var hapticCurveFloor: Double = defaultHapticCurveFloor
 
     var timeline: BreathingTimeline {
         BreathingTimeline(
             breathsPerMinute: breathsPerMinute,
             hapticIntensity: hapticIntensity,
             hapticFrequency: hapticFrequency,
-            hapticCurveTiming: hapticCurveTiming,
-            hapticCurveFocus: hapticCurveFocus,
-            hapticCurveFloor: hapticCurveFloor
+            hapticCurveTiming: hapticCurveTiming
         )
     }
 }
@@ -268,15 +280,12 @@ struct BreathingSnapshot: Equatable {
 struct BreathingTimeline {
     static let initialElapsedOffset: TimeInterval = 0.35
     static let hapticCurveMaximumShift = 0.32
-    static let hapticCurveMaximumFloor = 0.65
 
     var breathsPerMinute: Double = 7
     var peakHapticPulsesPerSecond: Double = 40.0
     var hapticIntensity: Double = MeditationSettings.defaultHapticIntensity
     var hapticFrequency: Double = MeditationSettings.defaultHapticFrequency
     var hapticCurveTiming: Double = MeditationSettings.defaultHapticCurveTiming
-    var hapticCurveFocus: Double = MeditationSettings.defaultHapticCurveFocus
-    var hapticCurveFloor: Double = MeditationSettings.defaultHapticCurveFloor
 
     var cycleDuration: TimeInterval {
         60 / breathsPerMinute
@@ -300,9 +309,7 @@ struct BreathingTimeline {
             ? Self.shapedHapticRate(
                 phaseProgress: phaseProgress,
                 baseRate: baseHapticRate,
-                timing: hapticCurveTiming,
-                focus: hapticCurveFocus,
-                floor: hapticCurveFloor
+                timing: hapticCurveTiming
             )
             : 0
         let clampedHapticIntensity = max(0, min(1, hapticIntensity))
@@ -336,23 +343,23 @@ struct BreathingTimeline {
     static func shapedHapticRate(
         phaseProgress: Double,
         baseRate: Double,
-        timing: Double,
-        focus: Double,
-        floor: Double
+        timing: Double
     ) -> Double {
         let phase = max(0, min(1, phaseProgress))
         let base = max(0, min(1, baseRate))
-        let clampedTiming = max(-1, min(1, timing))
-        let clampedFocus = max(0, min(1, focus))
-        let clampedFloor = max(0, min(1, floor))
+        let clampedTiming = max(
+            MeditationSettings.hapticCurveTimingRange.lowerBound,
+            min(MeditationSettings.hapticCurveTimingRange.upperBound, timing)
+        )
+        let timingMagnitude = clampedTiming < 0
+            ? abs(clampedTiming / MeditationSettings.hapticCurveTimingRange.lowerBound)
+            : clampedTiming / MeditationSettings.hapticCurveTimingRange.upperBound
         let center = 0.5 + hapticCurveMaximumShift * clampedTiming
-        let width = 0.50 - 0.34 * clampedFocus
+        let width = 0.50 - 0.18 * timingMagnitude
         let normalizedDistance = (phase - center) / width
         let shiftedPeak = exp(-1.8 * normalizedDistance * normalizedDistance)
-        let shapedBlend = min(1, abs(clampedTiming) + clampedFocus)
-        let focusedRate = base * (1 - shapedBlend) + shiftedPeak * shapedBlend
-        let floorRate = hapticCurveMaximumFloor * clampedFloor
+        let shapedBlend = min(1, timingMagnitude)
 
-        return min(1, max(0, floorRate + (1 - floorRate) * focusedRate))
+        return min(1, max(0, base * (1 - shapedBlend) + shiftedPeak * shapedBlend))
     }
 }

@@ -84,6 +84,13 @@ struct HapticPulseSchedulerTests {
     }
 
     @Test
+    func pulseIntensityFadesByFortyPercentWithRate() {
+        #expect(HapticPulseScheduler.minimumPulseIntensity == 0.60)
+        #expect(HapticPulseScheduler.maximumPulseIntensity == 1.0)
+        #expect(abs((HapticPulseScheduler.maximumPulseIntensity - HapticPulseScheduler.minimumPulseIntensity) - 0.40) < 0.000_001)
+    }
+
+    @Test
     func stopResetsSchedulerState() {
         let timeline = BreathingTimeline()
         let startDate = Date(timeIntervalSinceReferenceDate: 3_000)

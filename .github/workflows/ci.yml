@@ -366,6 +366,7 @@ jobs:
             open_mode "breathing-horizon" "Breathing horizon" || overall=1
             open_mode "silk-ribbon" "Silk ribbon" || overall=1
             open_mode "ink-bloom" "Ink bloom" || overall=1
+            open_mode "soft-glow" "Soft glow" || overall=1
           else
             overall=1
             cat "$launch_log" >&2 || true
@@ -373,6 +374,7 @@ jobs:
             write_result "Breathing horizon" "failed"
             write_result "Silk ribbon" "failed"
             write_result "Ink bloom" "failed"
+            write_result "Soft glow" "failed"
           fi
 
           xcrun simctl terminate "$simulator_id" "$bundle_id" || true
@@ -497,7 +499,7 @@ jobs:
             gh release create "$tag" --title "$title" --notes-file "$notes" --target "$GITHUB_SHA" --latest
           fi
 
-          for stale_asset in app-smoke-config.png app-smoke-breathing-horizon.png app-smoke-silk-ribbon.png app-smoke-ink-bloom.png; do
+          for stale_asset in app-smoke-config.png app-smoke-breathing-horizon.png app-smoke-silk-ribbon.png app-smoke-ink-bloom.png app-smoke-soft-glow.png; do
             gh release delete-asset "$tag" "$stale_asset" -y >/dev/null 2>&1 || true
           done
 

@@ -12,14 +12,13 @@ struct ContentView: View {
     @AppStorage(MeditationPersistenceKey.hapticIntensity) private var hapticIntensity = MeditationSettings.defaultHapticIntensity
     @AppStorage(MeditationPersistenceKey.hapticFrequency) private var hapticFrequency = MeditationSettings.defaultHapticFrequency
     @AppStorage(MeditationPersistenceKey.hapticCurveTiming) private var hapticCurveTiming = MeditationSettings.defaultHapticCurveTiming
-    @AppStorage(MeditationPersistenceKey.hapticCurveFocus) private var hapticCurveFocus = MeditationSettings.defaultHapticCurveFocus
-    @AppStorage(MeditationPersistenceKey.hapticCurveFloor) private var hapticCurveFloor = MeditationSettings.defaultHapticCurveFloor
 
     @State private var startedAt = Date()
     @State private var chromeVisible = true
     @State private var chromeFadeToken = 0
-    @State private var settlingSwipeTransition: PanelSwipeTransition?
-    @State private var swipeSettleToken = 0
+    @State private var settlingPanelTransition: PanelTransition?
+    @State private var buttonPanelTransition: PanelTransition?
+    @State private var panelTransitionToken = 0
     @GestureState private var liveSwipeTranslation: CGFloat = 0
     @StateObject private var haptics = BreathHapticCoordinator()
     @StateObject private var diagnostics = FrameDiagnosticsSampler()
@@ -41,9 +40,7 @@ struct ContentView: View {
             breathsPerMinute: clamped(breathsPerMinute, to: MeditationSettings.breathsPerMinuteRange),
             hapticIntensity: clamped(hapticIntensity, to: MeditationSettings.hapticIntensityRange),
             hapticFrequency: clamped(hapticFrequency, to: MeditationSettings.hapticFrequencyRange),
-            hapticCurveTiming: clamped(hapticCurveTiming, to: MeditationSettings.hapticCurveTimingRange),
-            hapticCurveFocus: clamped(hapticCurveFocus, to: MeditationSettings.hapticCurveControlRange),
-            hapticCurveFloor: clamped(hapticCurveFloor, to: MeditationSettings.hapticCurveControlRange)
+            hapticCurveTiming: clamped(hapticCurveTiming, to: MeditationSettings.hapticCurveTimingRange)
         )
     }
 
@@ -60,15 +57,11 @@ struct ContentView: View {
 
         GeometryReader { geometry in
             let width = max(1, geometry.size.width)
-            let activeTransition = swipeTransition(width: width)
-            let sceneTransition = activeTransition.map { transition in
-                MeditationSceneTransition(
-                    fromMode: animationMode(for: transition.fromPanel),
-                    toMode: animationMode(for: transition.toPanel),
-                    direction: transition.direction,
-                    progress: transition.progress
-                )
-            }
+            let activeTransition = panelTransition(width: width)
+            let sceneTransition = sceneTransition(for: activeTransition)
+            let chromeContentStates = panelContentStates(for: activeTransition)
+            let chromeIsVisible = panel == .configuration || chromeVisible || activeTransition != nil
+            let switcherSelection = panelSwitcherSelection(for: activeTransition)
 
             ZStack {
                 MeditationScene(
@@ -97,32 +90,22 @@ struct ContentView: View {
                 VStack {
                     Spacer()
 
-                    if panel == .configuration {
-                        ConfigurationPanel(
-                            breathsPerMinute: $breathsPerMinute,
-                            hapticIntensity: $hapticIntensity,
-                            hapticFrequency: $hapticFrequency,
-                            hapticCurveTiming: $hapticCurveTiming,
-                            hapticCurveFocus: $hapticCurveFocus,
-                            hapticCurveFloor: $hapticCurveFloor
-                        )
-                            .padding(.bottom, 16)
-                    } else {
-                        TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
-                            BreathCaption(
-                                mode: activeMode,
-                                snapshot: timeline.snapshot(at: context.date, startedAt: startedAt)
-                            )
+                    ZStack {
+                        ForEach(chromeContentStates) { state in
+                            panelChromeContent(state)
+                                .opacity(state.opacity)
+                                .offset(x: state.offsetX)
                         }
                     }
+                    .padding(.bottom, 16)
 
-                    PanelSwitcher(selection: panel) { selectedPanel in
-                        setPanel(selectedPanel)
+                    PanelSwitcher(selection: switcherSelection) { selectedPanel in
+                        selectPanel(selectedPanel)
                     }
                 }
-                .opacity(panel == .configuration || chromeVisible ? 1 : 0)
+                .opacity(chromeIsVisible ? 1 : 0)
                 .allowsHitTesting(panel == .configuration || chromeVisible)
-                .accessibilityHidden(panel != .configuration && !chromeVisible)
+                .accessibilityHidden(!chromeIsVisible)
                 .padding(.horizontal, 22)
                 .padding(.top, 18)
                 .padding(.bottom, 24)
@@ -191,6 +174,25 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
+    private func panelChromeContent(_ state: PanelContentState) -> some View {
+        if state.panel == .configuration {
+            ConfigurationPanel(
+                breathsPerMinute: $breathsPerMinute,
+                hapticIntensity: $hapticIntensity,
+                hapticFrequency: $hapticFrequency,
+                hapticCurveTiming: $hapticCurveTiming
+            )
+        } else if let mode = state.panel.animationMode {
+            TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
+                BreathCaption(
+                    mode: mode,
+                    snapshot: timeline.snapshot(at: context.date, startedAt: startedAt)
+                )
+            }
+        }
+    }
+
     private func swipeGesture(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 38)
             .updating($liveSwipeTranslation) { value, state, transaction in
@@ -203,7 +205,7 @@ struct ContentView: View {
     }
 
     private func interactiveTranslation(for value: DragGesture.Value) -> CGFloat {
-        guard settlingSwipeTransition == nil else {
+        guard settlingPanelTransition == nil, buttonPanelTransition == nil else {
             return 0
         }
 
@@ -222,7 +224,7 @@ struct ContentView: View {
     }
 
     private func settleSwipe(_ value: DragGesture.Value, width: CGFloat) {
-        guard settlingSwipeTransition == nil else {
+        guard settlingPanelTransition == nil, buttonPanelTransition == nil else {
             return
         }
 
@@ -246,26 +248,27 @@ struct ContentView: View {
         let shouldCommit = currentProgress >= 0.24 || predictedProgress >= 0.34 || abs(predictedHorizontal) > 180
         let startingProgress = max(0.02, currentProgress)
         let endProgress: CGFloat = shouldCommit ? 1 : 0
-        let transition = PanelSwipeTransition(
+        let transition = PanelTransition(
             fromPanel: panel,
             toPanel: targetPanel,
             direction: direction,
-            progress: startingProgress
+            progress: startingProgress,
+            style: .swipe
         )
-        let token = swipeSettleToken + 1
+        let token = panelTransitionToken + 1
 
-        swipeSettleToken = token
-        settlingSwipeTransition = transition
+        panelTransitionToken = token
+        settlingPanelTransition = transition
         revealChromeTemporarily()
 
         withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.88, blendDuration: 0.08)) {
-            settlingSwipeTransition = transition.withProgress(endProgress)
+            settlingPanelTransition = transition.withProgress(endProgress)
         }
 
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 340_000_000)
 
-            guard swipeSettleToken == token else {
+            guard panelTransitionToken == token else {
                 return
             }
 
@@ -277,7 +280,7 @@ struct ContentView: View {
                     setPanel(targetPanel, reveal: false)
                 }
 
-                settlingSwipeTransition = nil
+                settlingPanelTransition = nil
             }
 
             if shouldCommit {
@@ -300,6 +303,53 @@ struct ContentView: View {
         while !Task.isCancelled {
             diagnostics.refresh()
             try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+    }
+
+    private func selectPanel(_ newPanel: MeditationPanel) {
+        guard newPanel != panel else {
+            revealChromeTemporarily()
+            return
+        }
+
+        guard settlingPanelTransition == nil, buttonPanelTransition == nil,
+              let direction = PanelSwipeDirection(from: panel, to: newPanel) else {
+            return
+        }
+
+        let transition = PanelTransition(
+            fromPanel: panel,
+            toPanel: newPanel,
+            direction: direction,
+            progress: 0,
+            style: .button
+        )
+        let token = panelTransitionToken + 1
+
+        panelTransitionToken = token
+        buttonPanelTransition = transition
+        revealChromeTemporarily()
+
+        withAnimation(.easeInOut(duration: 0.30)) {
+            buttonPanelTransition = transition.withProgress(1)
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 310_000_000)
+
+            guard panelTransitionToken == token else {
+                return
+            }
+
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+
+            withTransaction(transaction) {
+                setPanel(newPanel, reveal: false)
+                buttonPanelTransition = nil
+            }
+
+            revealChromeTemporarily()
         }
     }
 
@@ -366,9 +416,13 @@ struct ContentView: View {
         return nil
     }
 
-    private func swipeTransition(width: CGFloat) -> PanelSwipeTransition? {
-        if let settlingSwipeTransition {
-            return settlingSwipeTransition
+    private func panelTransition(width: CGFloat) -> PanelTransition? {
+        if let buttonPanelTransition {
+            return buttonPanelTransition
+        }
+
+        if let settlingPanelTransition {
+            return settlingPanelTransition
         }
 
         guard let targetPanel = targetPanel(for: liveSwipeTranslation),
@@ -376,12 +430,74 @@ struct ContentView: View {
             return nil
         }
 
-        return PanelSwipeTransition(
+        return PanelTransition(
             fromPanel: panel,
             toPanel: targetPanel,
             direction: direction,
-            progress: min(0.98, max(0, abs(liveSwipeTranslation) / max(width, 1)))
+            progress: min(0.98, max(0, abs(liveSwipeTranslation) / max(width, 1))),
+            style: .swipe
         )
+    }
+
+    private func sceneTransition(for transition: PanelTransition?) -> MeditationSceneTransition? {
+        guard let transition else {
+            return nil
+        }
+
+        let fromMode = animationMode(for: transition.fromPanel)
+        let toMode = animationMode(for: transition.toPanel)
+
+        guard fromMode != toMode else {
+            return nil
+        }
+
+        return MeditationSceneTransition(
+            fromMode: fromMode,
+            toMode: toMode,
+            direction: transition.direction,
+            progress: transition.progress,
+            style: transition.style
+        )
+    }
+
+    private func panelContentStates(for transition: PanelTransition?) -> [PanelContentState] {
+        guard let transition else {
+            return [PanelContentState(panel: panel, opacity: 1, offsetX: 0)]
+        }
+
+        return [transition.fromPanel, transition.toPanel].compactMap { candidate in
+            panelContentState(for: candidate, transition: transition)
+        }
+    }
+
+    private func panelContentState(for candidate: MeditationPanel, transition: PanelTransition) -> PanelContentState? {
+        let progress = max(0, min(1, transition.progress))
+        let opacity: Double
+        let offsetX: CGFloat
+
+        if candidate == transition.fromPanel {
+            opacity = Double(1 - progress)
+            offsetX = transition.style == .swipe ? transition.direction.sign * progress * 34 : 0
+        } else if candidate == transition.toPanel {
+            opacity = Double(progress)
+            offsetX = transition.style == .swipe ? -transition.direction.sign * (1 - progress) * 34 : 0
+        } else {
+            return nil
+        }
+
+        return PanelContentState(panel: candidate, opacity: opacity, offsetX: offsetX)
+    }
+
+    private func panelSwitcherSelection(for transition: PanelTransition?) -> MeditationPanel {
+        guard let transition else {
+            return panel
+        }
+
+        if transition.style == .button || transition.progress >= 0.5 {
+            return transition.toPanel
+        }
+
+        return transition.fromPanel
     }
 }
 
@@ -389,6 +505,14 @@ private struct HapticsLoopID: Equatable {
     let startedAt: Date
     let settings: MeditationSettings
     let sceneIsActive: Bool
+}
+
+private struct PanelContentState: Identifiable, Equatable {
+    let panel: MeditationPanel
+    let opacity: Double
+    let offsetX: CGFloat
+
+    var id: Int { panel.id }
 }
 
 private enum PanelSwipeDirection: Equatable {
@@ -405,6 +529,16 @@ private enum PanelSwipeDirection: Equatable {
         }
     }
 
+    init?(from: MeditationPanel, to: MeditationPanel) {
+        if to.rawValue > from.rawValue {
+            self = .next
+        } else if to.rawValue < from.rawValue {
+            self = .previous
+        } else {
+            return nil
+        }
+    }
+
     var sign: CGFloat {
         switch self {
         case .previous:
@@ -415,18 +549,25 @@ private enum PanelSwipeDirection: Equatable {
     }
 }
 
-private struct PanelSwipeTransition: Equatable {
+private enum PanelTransitionStyle: Equatable {
+    case swipe
+    case button
+}
+
+private struct PanelTransition: Equatable {
     let fromPanel: MeditationPanel
     let toPanel: MeditationPanel
     let direction: PanelSwipeDirection
     let progress: CGFloat
+    let style: PanelTransitionStyle
 
-    func withProgress(_ progress: CGFloat) -> PanelSwipeTransition {
-        PanelSwipeTransition(
+    func withProgress(_ progress: CGFloat) -> PanelTransition {
+        PanelTransition(
             fromPanel: fromPanel,
             toPanel: toPanel,
             direction: direction,
-            progress: progress
+            progress: progress,
+            style: style
         )
     }
 }
@@ -436,6 +577,7 @@ private struct MeditationSceneTransition: Equatable {
     let toMode: MeditationAnimationMode
     let direction: PanelSwipeDirection
     let progress: CGFloat
+    let style: PanelTransitionStyle
 }
 
 private struct MeditationScene: View {
@@ -454,6 +596,7 @@ private struct MeditationScene: View {
                 let progress = transition?.progress ?? 0
                 let sign = transition?.direction.sign ?? 0
                 let baseMode = transition?.fromMode ?? mode
+                let parallax = transition?.style == .button ? min(width * 0.035, 18) : min(width * 0.075, 34)
 
                 ZStack {
                     MeditationVisualLayer(
@@ -462,18 +605,18 @@ private struct MeditationScene: View {
                         time: time,
                         reduceMotion: reduceMotion
                     )
-                    .offset(x: sign * progress * width)
-                    .opacity(1 - 0.34 * Double(progress))
+                    .offset(x: sign * progress * parallax)
+                    .opacity(1 - Double(progress))
 
                     if let transition {
                         MeditationVisualLayer(
-                            mode: transition.toMode,
-                            snapshot: snapshot,
-                            time: time,
-                            reduceMotion: reduceMotion
-                        )
-                        .offset(x: -transition.direction.sign * (1 - transition.progress) * width)
-                        .opacity(0.26 + 0.74 * Double(transition.progress))
+                        mode: transition.toMode,
+                        snapshot: snapshot,
+                        time: time,
+                        reduceMotion: true
+                    )
+                        .offset(x: -transition.direction.sign * (1 - transition.progress) * parallax)
+                        .opacity(Double(transition.progress))
                     }
                 }
                 .clipped()
@@ -586,6 +729,12 @@ private struct AmbientBackground: View {
                 Color(red: 0.09, green: 0.055, blue: 0.16),
                 Color(red: 0.015, green: 0.015, blue: 0.04),
             ]
+        case .softGlow:
+            return [
+                Color(red: 0.010, green: 0.014, blue: 0.030),
+                Color(red: 0.030, green: 0.042, blue: 0.080),
+                Color(red: 0.006, green: 0.009, blue: 0.022),
+            ]
         }
     }
 
@@ -621,6 +770,8 @@ private struct MeditationArtwork: View {
                 MeditationRenderer.drawBreathingHorizon(in: &context, size: size, snapshot: snapshot, time: time, reduceMotion: reduceMotion)
             case .inkBloom:
                 MeditationRenderer.drawInkBloom(in: &context, size: size, snapshot: snapshot, time: time, reduceMotion: reduceMotion)
+            case .softGlow:
+                MeditationRenderer.drawSoftGlow(in: &context, size: size, snapshot: snapshot, time: time, reduceMotion: reduceMotion)
             }
         }
     }
@@ -631,8 +782,6 @@ private struct ConfigurationPanel: View {
     @Binding var hapticIntensity: Double
     @Binding var hapticFrequency: Double
     @Binding var hapticCurveTiming: Double
-    @Binding var hapticCurveFocus: Double
-    @Binding var hapticCurveFloor: Double
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -679,26 +828,6 @@ private struct ConfigurationPanel: View {
                     range: MeditationSettings.hapticCurveTimingRange,
                     step: 0.05,
                     accent: Color(red: 0.80, green: 0.92, blue: 1.0)
-                )
-
-                ConfigurationSlider(
-                    title: "Peak focus",
-                    valueText: "\(Int((hapticCurveFocus * 100).rounded()))%",
-                    systemImage: "scope",
-                    value: $hapticCurveFocus,
-                    range: MeditationSettings.hapticCurveControlRange,
-                    step: 0.05,
-                    accent: Color(red: 0.84, green: 0.66, blue: 1.0)
-                )
-
-                ConfigurationSlider(
-                    title: "Pulse floor",
-                    valueText: "\(Int((hapticCurveFloor * 100).rounded()))%",
-                    systemImage: "water.waves",
-                    value: $hapticCurveFloor,
-                    range: MeditationSettings.hapticCurveControlRange,
-                    step: 0.05,
-                    accent: Color(red: 1.0, green: 0.68, blue: 0.58)
                 )
             }
         }
@@ -860,9 +989,7 @@ private struct PanelSwitcher: View {
         HStack(spacing: 8) {
             ForEach(MeditationPanel.allCases) { panel in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.28)) {
-                        onSelect(panel)
-                    }
+                    onSelect(panel)
                 } label: {
                     HStack(spacing: 7) {
                         panelIcon(panel)
@@ -906,7 +1033,7 @@ private struct PanelSwitcher: View {
             Image(systemName: "slider.horizontal.3")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(panel.accent)
-        case .breathingHorizon, .silkRibbon, .inkBloom:
+        case .breathingHorizon, .silkRibbon, .inkBloom, .softGlow:
             Circle()
                 .fill(panel.accent)
                 .frame(width: 7, height: 7)

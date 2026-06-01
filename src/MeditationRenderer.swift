@@ -405,6 +405,88 @@ enum MeditationRenderer {
         }
     }
 
+    static func drawSoftGlow(
+        in context: inout GraphicsContext,
+        size: CGSize,
+        snapshot: BreathingSnapshot,
+        time: TimeInterval,
+        reduceMotion: Bool
+    ) {
+        let width = size.width
+        let height = size.height
+        let scale = min(width, height)
+        let motionScale: CGFloat = reduceMotion ? 0.30 : 1
+        let breath = CGFloat(snapshot.breathAmount) * motionScale
+        let t = CGFloat(time)
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 82))
+            fillRadialEllipse(
+                in: &layer,
+                rect: CGRect(
+                    x: width * 0.04,
+                    y: height * 0.08,
+                    width: width * 0.92,
+                    height: height * 0.74
+                ),
+                center: CGPoint(
+                    x: width * (0.50 + 0.018 * sin(t * 0.055)),
+                    y: height * (0.42 + 0.022 * cos(t * 0.047))
+                ),
+                startRadius: scale * 0.08,
+                endRadius: scale * (0.48 + 0.10 * breath),
+                colors: [
+                    Color(red: 0.38, green: 0.48, blue: 0.90).opacity(0.13 + 0.05 * Double(breath)),
+                    Color(red: 0.18, green: 0.24, blue: 0.52).opacity(0.08 + 0.03 * Double(breath)),
+                    .clear,
+                ]
+            )
+        }
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 34))
+
+            for index in 0..<(reduceMotion ? 3 : 6) {
+                let i = CGFloat(index)
+                let n0 = pseudoNoise(index * 41 + 9)
+                let n1 = pseudoNoise(index * 41 + 23)
+                let n2 = pseudoNoise(index * 41 + 47)
+                let localPulse = 0.5 + 0.5 * sin(t * (0.055 + 0.045 * n0) + i * 1.83)
+                let drift = CGPoint(
+                    x: width * (0.018 + 0.030 * n1) * sin(t * (0.034 + 0.035 * n2) + i * 2.2),
+                    y: height * (0.014 + 0.024 * n0) * cos(t * (0.030 + 0.032 * n1) + i * 1.7)
+                )
+                let center = CGPoint(
+                    x: width * (0.20 + 0.62 * n0) + drift.x,
+                    y: height * (0.24 + 0.46 * n1) + drift.y
+                )
+                let radius = scale * (0.13 + 0.16 * n2) * (0.92 + 0.18 * breath + 0.10 * localPulse)
+                let rect = CGRect(
+                    x: center.x - radius * (1.20 + 0.40 * n1),
+                    y: center.y - radius * (1.00 + 0.34 * n2),
+                    width: radius * (2.20 + 0.80 * n1),
+                    height: radius * (1.80 + 0.70 * n2)
+                )
+                let cool = Color(red: 0.54, green: 0.66, blue: 1.0)
+                let violet = Color(red: 0.42, green: 0.32, blue: 0.78)
+                let opacity = 0.035 + 0.034 * Double(localPulse) + 0.030 * Double(breath)
+
+                fillRadialEllipse(
+                    in: &layer,
+                    rect: rect,
+                    center: center,
+                    startRadius: radius * 0.02,
+                    endRadius: radius * 1.75,
+                    colors: [
+                        cool.opacity(opacity),
+                        violet.opacity(opacity * 0.58),
+                        .clear,
+                    ]
+                )
+            }
+        }
+    }
+
     private static func drawReflection(
         in context: inout GraphicsContext,
         size: CGSize,

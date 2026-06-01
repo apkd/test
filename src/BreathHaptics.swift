@@ -249,8 +249,6 @@ private struct HapticPatternSignature: Equatable {
     let hapticIntensity: Double
     let hapticFrequency: Double
     let hapticCurveTiming: Double
-    let hapticCurveFocus: Double
-    let hapticCurveFloor: Double
 
     var isEnabled: Bool {
         hapticIntensity > 0
@@ -262,8 +260,6 @@ private struct HapticPatternSignature: Equatable {
         hapticIntensity = timeline.hapticIntensity
         hapticFrequency = timeline.hapticFrequency
         hapticCurveTiming = timeline.hapticCurveTiming
-        hapticCurveFocus = timeline.hapticCurveFocus
-        hapticCurveFloor = timeline.hapticCurveFloor
     }
 }
 #endif
@@ -276,7 +272,7 @@ enum HapticPulseEvent: Equatable {
 
 struct HapticPulseScheduler {
     static let inhaleStartPulseIntensity = 0.82
-    static let minimumPulseIntensity = 0.62
+    static let minimumPulseIntensity = 0.60
     static let maximumPulseIntensity = 1.0
 
     private(set) var isInhaling = false

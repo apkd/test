@@ -20,7 +20,7 @@ struct BreathingTimelineTests {
 
     @Test
     func sineModelMapsFirstHalfToInhaleAndSecondHalfToExhale() {
-        let timeline = BreathingTimeline()
+        let timeline = BreathingTimeline(hapticCurveTiming: 0)
 
         let start = timeline.snapshot(elapsed: 0)
         let inhalePeak = timeline.snapshot(elapsed: timeline.cycleDuration * 0.25)
@@ -39,7 +39,7 @@ struct BreathingTimelineTests {
 
     @Test
     func hapticRateAcceleratesThenDeceleratesDuringInhale() {
-        let timeline = BreathingTimeline()
+        let timeline = BreathingTimeline(hapticCurveTiming: 0)
 
         let earlyInhale = timeline.snapshot(elapsed: timeline.cycleDuration * 0.125)
         let inhalePeak = timeline.snapshot(elapsed: timeline.cycleDuration * 0.25)
@@ -74,9 +74,9 @@ struct BreathingTimelineTests {
 
     @Test
     func hapticFrequencyControlsPulseRate() {
-        let quiet = BreathingTimeline(hapticFrequency: 0)
-        let defaultFrequency = BreathingTimeline(hapticFrequency: 0.5)
-        let maximum = BreathingTimeline(hapticFrequency: 1)
+        let quiet = BreathingTimeline(hapticFrequency: 0, hapticCurveTiming: 0)
+        let defaultFrequency = BreathingTimeline(hapticFrequency: 0.5, hapticCurveTiming: 0)
+        let maximum = BreathingTimeline(hapticFrequency: 1, hapticCurveTiming: 0)
 
         #expect(quiet.snapshot(elapsed: quiet.cycleDuration * 0.25).hapticPulsesPerSecond == 0)
         #expect(abs(defaultFrequency.snapshot(elapsed: defaultFrequency.cycleDuration * 0.25).hapticPulsesPerSecond - 20) < 0.000_001)
@@ -85,8 +85,8 @@ struct BreathingTimelineTests {
 
     @Test
     func hapticTimingCurveCanMovePulseEmphasisEarlierOrLater() {
-        let earlyTiming = BreathingTimeline(hapticCurveTiming: -1)
-        let lateTiming = BreathingTimeline(hapticCurveTiming: 1)
+        let earlyTiming = BreathingTimeline(hapticCurveTiming: MeditationSettings.hapticCurveTimingRange.lowerBound)
+        let lateTiming = BreathingTimeline(hapticCurveTiming: MeditationSettings.hapticCurveTimingRange.upperBound)
         let earlySample = 0.125
         let lateSample = 0.375
 
@@ -95,22 +95,11 @@ struct BreathingTimelineTests {
     }
 
     @Test
-    func hapticFocusCurveNarrowsPulseAroundPeak() {
-        let baseline = BreathingTimeline()
-        let focused = BreathingTimeline(hapticCurveFocus: 1)
-        let shoulderElapsed = baseline.cycleDuration * 0.125
-        let peakElapsed = baseline.cycleDuration * 0.25
-
-        #expect(focused.snapshot(elapsed: shoulderElapsed).hapticRate < baseline.snapshot(elapsed: shoulderElapsed).hapticRate)
-        #expect(abs(focused.snapshot(elapsed: peakElapsed).hapticRate - 1) < 0.000_001)
-    }
-
-    @Test
-    func hapticFloorCurveRaisesMinimumInhaleRate() {
-        let timeline = BreathingTimeline(hapticCurveFloor: 1)
-        let start = timeline.snapshot(elapsed: 0)
-
-        #expect(abs(start.hapticRate - BreathingTimeline.hapticCurveMaximumFloor) < 0.000_001)
+    func hapticTimingDefaultIsRemappedIntoAsymmetricRange() {
+        #expect(abs(MeditationSettings.hapticCurveTimingRange.lowerBound - -0.90) < 0.000_001)
+        #expect(abs(MeditationSettings.hapticCurveTimingRange.upperBound - 0.55) < 0.000_001)
+        #expect(abs(MeditationSettings.defaultHapticCurveTiming - -0.45) < 0.000_001)
+        #expect(abs(MeditationSettings.defaultHapticCurveTimingPosition - 45.0 / 145.0) < 0.000_001)
     }
 
     @Test
@@ -119,9 +108,7 @@ struct BreathingTimelineTests {
             breathsPerMinute: 9.5,
             hapticIntensity: 0.4,
             hapticFrequency: 0.25,
-            hapticCurveTiming: -0.2,
-            hapticCurveFocus: 0.3,
-            hapticCurveFloor: 0.4
+            hapticCurveTiming: -0.2
         )
         let timeline = settings.timeline
         let inhalePeak = timeline.snapshot(elapsed: timeline.cycleDuration * 0.25)
@@ -131,8 +118,6 @@ struct BreathingTimelineTests {
         #expect(abs(inhalePeak.hapticIntensityScale - 0.8) < 0.000_001)
         #expect(inhalePeak.hapticPulsesPerSecond > 0)
         #expect(timeline.hapticCurveTiming == -0.2)
-        #expect(timeline.hapticCurveFocus == 0.3)
-        #expect(timeline.hapticCurveFloor == 0.4)
     }
 
     @Test
@@ -162,12 +147,13 @@ struct BreathingTimelineTests {
     }
 
     @Test
-    func prototypeOffersTheThreeRequestedAnimationModes() {
+    func prototypeOffersMeditationAnimationModes() {
         #expect(MeditationAnimationMode.defaultMode == .breathingHorizon)
         #expect(MeditationAnimationMode.allCases.map(\.title) == [
             "Silk ribbon",
             "Breathing horizon",
             "Ink bloom",
+            "Soft glow",
         ])
     }
 
@@ -178,7 +164,9 @@ struct BreathingTimelineTests {
         #expect(MeditationAnimationMode.launchMode(environment: [key: "silk-ribbon"]) == .silkRibbon)
         #expect(MeditationAnimationMode.launchMode(environment: [key: "breathing-horizon"]) == .breathingHorizon)
         #expect(MeditationAnimationMode.launchMode(environment: [key: "ink-bloom"]) == .inkBloom)
+        #expect(MeditationAnimationMode.launchMode(environment: [key: "soft-glow"]) == .softGlow)
         #expect(MeditationAnimationMode.launchMode(environment: [key: "Bloom"]) == .inkBloom)
+        #expect(MeditationAnimationMode.launchMode(environment: [key: "Glow"]) == .softGlow)
         #expect(MeditationAnimationMode.launchMode(environment: [key: "unknown"]) == .breathingHorizon)
         #expect(MeditationAnimationMode.launchMode(environment: [:]) == .breathingHorizon)
     }
@@ -189,6 +177,7 @@ struct BreathingTimelineTests {
             .silkRibbon,
             .breathingHorizon,
             .inkBloom,
+            .softGlow,
         ])
     }
 
@@ -199,6 +188,7 @@ struct BreathingTimelineTests {
             "Breathing horizon",
             "Silk ribbon",
             "Ink bloom",
+            "Soft glow",
         ])
         #expect(MeditationPanel.launchPanel(environment: [:]) == .breathingHorizon)
         #expect(MeditationPanel.launchPanel(environment: [
@@ -207,9 +197,11 @@ struct BreathingTimelineTests {
         #expect(MeditationPanel.launchOverride(environment: [:]) == nil)
         #expect(MeditationPanel.breathingHorizon.next == .silkRibbon)
         #expect(MeditationPanel.configuration.previous == nil)
-        #expect(MeditationPanel.inkBloom.next == nil)
+        #expect(MeditationPanel.inkBloom.next == .softGlow)
         #expect(MeditationPanel.silkRibbon.previous == .breathingHorizon)
         #expect(MeditationPanel.silkRibbon.next == .inkBloom)
+        #expect(MeditationPanel.softGlow.previous == .inkBloom)
+        #expect(MeditationPanel.softGlow.next == nil)
     }
 
     @Test
@@ -219,6 +211,7 @@ struct BreathingTimelineTests {
         #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://screen/breathing-horizon"))) == .breathingHorizon)
         #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://mode/silk-ribbon"))) == .silkRibbon)
         #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://smoke/ink-bloom"))) == .inkBloom)
+        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://smoke/soft-glow"))) == .softGlow)
         #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://panel/unknown"))) == nil)
         #expect(MeditationPanel.appURLPanel(try #require(URL(string: "other://panel/config"))) == nil)
     }
@@ -231,7 +224,5 @@ struct BreathingTimelineTests {
         #expect(MeditationPersistenceKey.hapticIntensity == "meditation.hapticIntensity")
         #expect(MeditationPersistenceKey.hapticFrequency == "meditation.hapticFrequency")
         #expect(MeditationPersistenceKey.hapticCurveTiming == "meditation.hapticCurve.timing")
-        #expect(MeditationPersistenceKey.hapticCurveFocus == "meditation.hapticCurve.focus")
-        #expect(MeditationPersistenceKey.hapticCurveFloor == "meditation.hapticCurve.floor")
     }
 }
