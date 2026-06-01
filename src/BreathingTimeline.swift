@@ -7,6 +7,7 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
     case inkBloom
 
     static let defaultMode: MeditationAnimationMode = .breathingHorizon
+    static let launchEnvironmentKey = "MEDITATION_ANIMATION_MODE"
 
     var id: Int { rawValue }
 
@@ -29,6 +30,17 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
             "Horizon"
         case .inkBloom:
             "Bloom"
+        }
+    }
+
+    var launchValue: String {
+        switch self {
+        case .silkRibbon:
+            "silk-ribbon"
+        case .breathingHorizon:
+            "breathing-horizon"
+        case .inkBloom:
+            "ink-bloom"
         }
     }
 
@@ -60,6 +72,16 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
 
     var previous: MeditationAnimationMode {
         MeditationAnimationMode(rawValue: (rawValue + Self.allCases.count - 1) % Self.allCases.count) ?? .inkBloom
+    }
+
+    static func launchMode(environment: [String: String] = ProcessInfo.processInfo.environment) -> MeditationAnimationMode {
+        guard let rawValue = environment[launchEnvironmentKey]?.lowercased() else {
+            return defaultMode
+        }
+
+        return allCases.first { mode in
+            rawValue == mode.launchValue || rawValue == mode.shortTitle.lowercased()
+        } ?? defaultMode
     }
 }
 

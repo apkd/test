@@ -84,6 +84,18 @@ struct BreathingTimelineTests {
     }
 
     @Test
+    func launchEnvironmentCanSelectInitialAnimationMode() {
+        let key = MeditationAnimationMode.launchEnvironmentKey
+
+        #expect(MeditationAnimationMode.launchMode(environment: [key: "silk-ribbon"]) == .silkRibbon)
+        #expect(MeditationAnimationMode.launchMode(environment: [key: "breathing-horizon"]) == .breathingHorizon)
+        #expect(MeditationAnimationMode.launchMode(environment: [key: "ink-bloom"]) == .inkBloom)
+        #expect(MeditationAnimationMode.launchMode(environment: [key: "Bloom"]) == .inkBloom)
+        #expect(MeditationAnimationMode.launchMode(environment: [key: "unknown"]) == .breathingHorizon)
+        #expect(MeditationAnimationMode.launchMode(environment: [:]) == .breathingHorizon)
+    }
+
+    @Test
     func animationModesCycleForSwipeNavigation() {
         #expect(MeditationAnimationMode.silkRibbon.next == .breathingHorizon)
         #expect(MeditationAnimationMode.breathingHorizon.next == .inkBloom)

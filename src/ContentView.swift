@@ -6,7 +6,7 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var startedAt = Date()
-    @State private var mode = MeditationAnimationMode.defaultMode
+    @State private var mode = MeditationAnimationMode.launchMode()
     @StateObject private var haptics = BreathHapticCoordinator()
 
     private let timeline = BreathingTimeline()

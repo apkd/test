@@ -289,6 +289,67 @@ jobs:
           sleep 3
           xcrun simctl terminate "$simulator_id" "$bundle_id" || true
 
+      - name: Capture app screen report
+        if: success() || failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          simulator_id="${{ steps.simulator.outputs.simulator_id }}"
+          bundle_id="dev.tryfinally.test-app"
+          report_dir="app-smoke-report"
+          screenshots_dir="$report_dir/screenshots"
+          report="$report_dir/index.md"
+
+          mkdir -p "$screenshots_dir"
+
+          {
+            echo "# App launch smoke report"
+            echo
+            echo "Each mode is launched through \`SIMCTL_CHILD_MEDITATION_ANIMATION_MODE\`, then captured with \`xcrun simctl io screenshot\`."
+            echo
+            echo "| Screen | Launch result | Screenshot |"
+            echo "|---|---|---|"
+          } > "$report"
+
+          capture_mode() {
+            local mode="$1"
+            local title="$2"
+            local file="$screenshots_dir/$mode.png"
+            local launch_log="$report_dir/$mode-launch.txt"
+            local result="passed"
+
+            if SIMCTL_CHILD_MEDITATION_ANIMATION_MODE="$mode" \
+              xcrun simctl launch --terminate-running-process "$simulator_id" "$bundle_id" > "$launch_log" 2>&1; then
+              sleep 3
+              xcrun simctl io "$simulator_id" screenshot "$file"
+              xcrun simctl terminate "$simulator_id" "$bundle_id" || true
+            else
+              result="failed"
+              cat "$launch_log" >&2 || true
+            fi
+
+            printf '| %s | %s | ![%s](screenshots/%s.png) |\n' "$title" "$result" "$title" "$mode" >> "$report"
+
+            if [[ "$result" != "passed" ]]; then
+              return 1
+            fi
+          }
+
+          capture_mode "breathing-horizon" "Breathing horizon"
+          capture_mode "silk-ribbon" "Silk ribbon"
+          capture_mode "ink-bloom" "Ink bloom"
+
+          cat "$report" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload app smoke report
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-smoke-report
+          path: app-smoke-report
+          if-no-files-found: error
+
   release:
     name: update rolling release
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
