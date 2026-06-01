@@ -339,13 +339,12 @@ jobs:
             mkdir -p "$(dirname "$scheme_plist")"
 
             if [[ ! -f "$scheme_plist" ]]; then
-              cat > "$scheme_plist" <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict/>
-</plist>
-EOF
+              printf '%s\n' \
+                '<?xml version="1.0" encoding="UTF-8"?>' \
+                '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+                '<plist version="1.0">' \
+                '<dict/>' \
+                '</plist>' > "$scheme_plist"
             fi
 
             "$plist_buddy" -c "Print :$caller" "$scheme_plist" >/dev/null 2>&1 ||
