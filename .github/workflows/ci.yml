@@ -122,13 +122,13 @@ jobs:
                     )
                 ] as $devices
                 | (
-                    ($devices | map(select(.name == "iPhone 13 mini")) | .[0])
-                    // ($devices | map(select(.name == "iPhone 12 mini")) | .[0])
+                    ($devices | map(select(.name == "iPhone 17")) | .[0])
+                    // ($devices | map(select(.name == "iPhone 17 Pro")) | .[0])
+                    // ($devices | map(select(.name == "iPhone 16")) | .[0])
                     // ($devices | map(select(.name | test("^iPhone SE"))) | .[0])
-                    // ($devices | map(select(.name | test("^iPhone 16"))) | .[0])
                     // (
                       $devices
-                      | map(select(.name | test("^iPhone 15")))
+                      | map(select(.name | test("^iPhone")))
                       | .[0]
                     )
                     // $devices[0]
@@ -173,9 +173,19 @@ jobs:
           upload: never
 
   app-launch-smoke:
-    name: app launch smoke
+    name: app launch smoke (${{ matrix.device_name }})
     runs-on: macos-15
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - device_name: iPhone 17
+            artifact_suffix: iphone-17
+          - device_name: iPhone SE (3rd generation)
+            artifact_suffix: iphone-se-3rd-gen
+          - device_name: iPad mini (A17 Pro)
+            artifact_suffix: ipad-mini-a17-pro
 
     steps:
       - name: Check out repository
@@ -197,35 +207,22 @@ jobs:
 
           simulator_id="$(
             xcrun simctl list devices available -j |
-              jq -r '
+              jq -r --arg device_name "${{ matrix.device_name }}" '
                 [
                   .devices
                   | to_entries[]
                   | .value[]
                   | select(
                       .isAvailable == true
-                      and (.name | startswith("iPhone"))
+                      and .name == $device_name
                     )
-                ] as $devices
-                | (
-                    ($devices | map(select(.name == "iPhone 13 mini")) | .[0])
-                    // ($devices | map(select(.name == "iPhone 12 mini")) | .[0])
-                    // ($devices | map(select(.name | test("^iPhone SE"))) | .[0])
-                    // ($devices | map(select(.name | test("^iPhone 16"))) | .[0])
-                    // (
-                      $devices
-                      | map(select(.name | test("^iPhone 15")))
-                      | .[0]
-                    )
-                    // $devices[0]
-                    // {}
-                  )
-                | .udid // empty
+                ]
+                | .[0].udid // empty
               '
           )"
 
           if [[ -z "$simulator_id" ]]; then
-            echo "No available iPhone simulator found." >&2
+            echo "No available '${{ matrix.device_name }}' simulator found." >&2
             exit 1
           fi
 
@@ -285,7 +282,7 @@ jobs:
 
           simulator_id="${{ steps.simulator.outputs.simulator_id }}"
           bundle_id="dev.tryfinally.test-app"
-          screenshots_dir="app-smoke-screenshots"
+          screenshots_dir="app-smoke-screenshots-${{ matrix.artifact_suffix }}"
           logs_dir="$RUNNER_TEMP/app-smoke-logs"
           results="$RUNNER_TEMP/app-smoke-results.tsv"
           initial_delay_seconds="0.8"
@@ -392,9 +389,11 @@ jobs:
           {
             echo "# App launch smoke report"
             echo
+            echo "Device: \`${{ matrix.device_name }}\`"
+            echo
             echo "The app is launched once, then each panel is selected through an env-gated smoke control file. Animation panels are captured at inhale, full-breath, and exhale cycle positions."
             echo
-            echo "Screenshots are uploaded as flat PNG files in the \`app-smoke-screenshots\` artifact."
+            echo "Screenshots are uploaded as flat PNG files in the \`app-smoke-screenshots-${{ matrix.artifact_suffix }}\` artifact."
             echo
 
             while IFS=$'\t' read -r title result; do
@@ -408,8 +407,8 @@ jobs:
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: app-smoke-screenshots
-          path: app-smoke-screenshots/*.png
+          name: app-smoke-screenshots-${{ matrix.artifact_suffix }}
+          path: app-smoke-screenshots-${{ matrix.artifact_suffix }}/*.png
           if-no-files-found: error
 
   release:
