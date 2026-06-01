@@ -305,7 +305,7 @@ jobs:
           logs_dir="$RUNNER_TEMP/app-smoke-logs"
           results="$RUNNER_TEMP/app-smoke-results.tsv"
           initial_delay_seconds="0.8"
-          transition_delay_seconds="0.25"
+          transition_delay_seconds="0.45"
           smoke_file_name="meditation-smoke-panel.txt"
 
           rm -rf "$screenshots_dir"
@@ -358,7 +358,7 @@ jobs:
           }
 
           overall=0
-          app_container="$(xcrun simctl get_app_container "$simulator_id" "$bundle_id")"
+          app_container="$(xcrun simctl get_app_container "$simulator_id" "$bundle_id" data)"
           smoke_control_file="$app_container/Documents/$smoke_file_name"
           launch_log="$logs_dir/app-launch.txt"
 
