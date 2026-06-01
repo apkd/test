@@ -33,41 +33,6 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      - name: Show tool versions
-        run: |
-          xcode-select -p
-          xcodebuild -version
-          swift --version
-          xcrun -sdk iphoneos -show-sdk-path
-          brew --version
-
-      - name: Compute Swift cache key
-        id: swift-cache-key
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "swift_version=$(swift --version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
-          echo "xcode_version=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
-          echo "target_triple=arm64-apple-ios" >> "$GITHUB_OUTPUT"
-          echo "build_config=release-ipa" >> "$GITHUB_OUTPUT"
-
-      - name: Cache SwiftPM build data
-        uses: actions/cache@v4
-        with:
-          path: |
-            .build
-            ~/.swiftpm
-            Package.resolved
-          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.swift-cache-key.outputs.xcode_version }}-${{ steps.swift-cache-key.outputs.swift_version }}-${{ steps.swift-cache-key.outputs.target_triple }}-${{ steps.swift-cache-key.outputs.build_config }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.swift-cache-key.outputs.xcode_version }}-${{ steps.swift-cache-key.outputs.swift_version }}-${{ steps.swift-cache-key.outputs.target_triple }}-${{ steps.swift-cache-key.outputs.build_config }}-
-            swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.swift-cache-key.outputs.xcode_version }}-${{ steps.swift-cache-key.outputs.swift_version }}-${{ steps.swift-cache-key.outputs.target_triple }}-
-            swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.swift-cache-key.outputs.xcode_version }}-${{ steps.swift-cache-key.outputs.swift_version }}-
-
-      - name: Resolve Swift package dependencies
-        run: swift package resolve
-
       - name: Install xtool
         run: brew install xtool-org/tap/xtool
 
@@ -113,55 +78,6 @@ jobs:
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
-
-      - name: Show tool versions
-        run: |
-          xcode-select -p
-          xcodebuild -version
-          swift --version
-          xcrun -sdk iphonesimulator -show-sdk-path
-          xcrun simctl list runtimes
-
-      - name: Compute Swift cache key
-        id: swift-cache-key
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          case "$(uname -m)" in
-            arm64)
-              triple="arm64-apple-ios-simulator"
-              ;;
-            x86_64)
-              triple="x86_64-apple-ios-simulator"
-              ;;
-            *)
-              echo "Unsupported runner architecture: $(uname -m)" >&2
-              exit 1
-              ;;
-          esac
-
-          echo "swift_version=$(swift --version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
-          echo "xcode_version=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
-          echo "target_triple=$triple" >> "$GITHUB_OUTPUT"
-          echo "build_config=debug-tests" >> "$GITHUB_OUTPUT"
-
-      - name: Cache SwiftPM and DerivedData
-        uses: actions/cache@v4
-        with:
-          path: |
-            .build
-            .derived-data/package-tests
-            ~/.swiftpm
-            Package.resolved
-          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.swift-cache-key.outputs.xcode_version }}-${{ steps.swift-cache-key.outputs.swift_version }}-${{ steps.swift-cache-key.outputs.target_triple }}-${{ steps.swift-cache-key.outputs.build_config }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.swift-cache-key.outputs.xcode_version }}-${{ steps.swift-cache-key.outputs.swift_version }}-${{ steps.swift-cache-key.outputs.target_triple }}-${{ steps.swift-cache-key.outputs.build_config }}-
-            swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.swift-cache-key.outputs.xcode_version }}-${{ steps.swift-cache-key.outputs.swift_version }}-${{ steps.swift-cache-key.outputs.target_triple }}-
-            swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.swift-cache-key.outputs.xcode_version }}-${{ steps.swift-cache-key.outputs.swift_version }}-
-
-      - name: Resolve Swift package dependencies
-        run: swift package resolve
 
       - name: Select package scheme and simulator
         id: settings
@@ -268,55 +184,6 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      - name: Show tool versions
-        run: |
-          xcode-select -p
-          xcodebuild -version
-          swift --version
-          xcrun -sdk iphonesimulator -show-sdk-path
-          xcrun simctl list runtimes
-          uname -m
-
-      - name: Compute Swift cache key
-        id: swift-cache-key
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          case "$(uname -m)" in
-            arm64)
-              triple="arm64-apple-ios-simulator"
-              ;;
-            x86_64)
-              triple="x86_64-apple-ios-simulator"
-              ;;
-            *)
-              echo "Unsupported runner architecture: $(uname -m)" >&2
-              exit 1
-              ;;
-          esac
-
-          echo "swift_version=$(swift --version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
-          echo "xcode_version=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
-          echo "target_triple=$triple" >> "$GITHUB_OUTPUT"
-          echo "build_config=debug-smoke" >> "$GITHUB_OUTPUT"
-
-      - name: Cache SwiftPM build data
-        uses: actions/cache@v4
-        with:
-          path: |
-            .build
-            ~/.swiftpm
-            Package.resolved
-          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.swift-cache-key.outputs.xcode_version }}-${{ steps.swift-cache-key.outputs.swift_version }}-${{ steps.swift-cache-key.outputs.target_triple }}-${{ steps.swift-cache-key.outputs.build_config }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.swift-cache-key.outputs.xcode_version }}-${{ steps.swift-cache-key.outputs.swift_version }}-${{ steps.swift-cache-key.outputs.target_triple }}-${{ steps.swift-cache-key.outputs.build_config }}-
-            swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.swift-cache-key.outputs.xcode_version }}-${{ steps.swift-cache-key.outputs.swift_version }}-${{ steps.swift-cache-key.outputs.target_triple }}-
-            swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.swift-cache-key.outputs.xcode_version }}-${{ steps.swift-cache-key.outputs.swift_version }}-
-
-      - name: Resolve Swift package dependencies
-        run: swift package resolve
-
       - name: Install xtool
         run: brew install xtool-org/tap/xtool
 
@@ -370,7 +237,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          xtool dev build --configuration debug --triple "${{ steps.swift-cache-key.outputs.target_triple }}"
+          case "$(uname -m)" in
+            arm64)
+              triple="arm64-apple-ios-simulator"
+              ;;
+            x86_64)
+              triple="x86_64-apple-ios-simulator"
+              ;;
+            *)
+              echo "Unsupported runner architecture: $(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+
+          xtool dev build --configuration debug --triple "$triple"
 
       - name: Install simulator app
         shell: bash
