@@ -149,11 +149,31 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
     }
 
     var next: MeditationPanel? {
-        MeditationPanel(rawValue: rawValue + 1)
+        switch self {
+        case .configuration:
+            .breathingHorizon
+        case .breathingHorizon:
+            .silkRibbon
+        case .silkRibbon:
+            .inkBloom
+        case .inkBloom:
+            .softGlow
+        case .softGlow:
+            nil
+        }
     }
 
     var previous: MeditationPanel? {
-        MeditationPanel(rawValue: rawValue - 1)
+        switch self {
+        case .configuration, .breathingHorizon:
+            nil
+        case .silkRibbon:
+            .breathingHorizon
+        case .inkBloom:
+            .silkRibbon
+        case .softGlow:
+            .inkBloom
+        }
     }
 
     static func panel(for mode: MeditationAnimationMode) -> MeditationPanel {

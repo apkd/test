@@ -17,14 +17,15 @@ struct ContentView: View {
     @State private var chromeVisible = true
     @State private var chromeFadeToken = 0
     @State private var settlingPanelTransition: PanelTransition?
-    @State private var buttonPanelTransition: PanelTransition?
     @State private var panelTransitionToken = 0
+    @State private var configurationVisible = false
     @GestureState private var liveSwipeTranslation: CGFloat = 0
     @StateObject private var haptics = BreathHapticCoordinator()
     @StateObject private var diagnostics = FrameDiagnosticsSampler()
 
     private var panel: MeditationPanel {
-        MeditationPanel(rawValue: panelRawValue) ?? .breathingHorizon
+        let resolvedPanel = MeditationPanel(rawValue: panelRawValue) ?? .breathingHorizon
+        return resolvedPanel == .configuration ? MeditationPanel.panel(for: currentMode) : resolvedPanel
     }
 
     private var currentMode: MeditationAnimationMode {
@@ -60,8 +61,7 @@ struct ContentView: View {
             let activeTransition = panelTransition(width: width)
             let sceneTransition = sceneTransition(for: activeTransition)
             let chromeContentStates = panelContentStates(for: activeTransition)
-            let chromeIsVisible = panel == .configuration || chromeVisible || activeTransition != nil
-            let switcherSelection = panelSwitcherSelection(for: activeTransition)
+            let breathChromeVisible = !configurationVisible && (chromeVisible || activeTransition != nil)
             let chromeHorizontalPadding = max(12, min(22, width * 0.04))
 
             ZStack {
@@ -88,33 +88,62 @@ struct ContentView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
-                VStack {
-                    Spacer()
+                if breathChromeVisible {
+                    VStack(spacing: 0) {
+                        HStack {
+                            Spacer()
 
-                    ZStack {
-                        ForEach(chromeContentStates) { state in
-                            panelChromeContent(state)
-                                .opacity(state.opacity)
-                                .offset(x: state.offsetX)
+                            ConfigButton {
+                                presentConfiguration()
+                            }
+                        }
+                        .padding(.top, 4)
+
+                        Spacer()
+
+                        ZStack {
+                            ForEach(chromeContentStates) { state in
+                                panelChromeContent(state)
+                                    .opacity(state.opacity)
+                                    .offset(x: state.offsetX)
+                            }
                         }
                     }
-                    .padding(.bottom, 16)
-
-                    PanelSwitcher(selection: switcherSelection) { selectedPanel in
-                        selectPanel(selectedPanel)
-                    }
+                    .transition(.opacity)
+                    .padding(.horizontal, chromeHorizontalPadding)
+                    .padding(.top, 18)
+                    .padding(.bottom, 24)
                 }
-                .opacity(chromeIsVisible ? 1 : 0)
-                .allowsHitTesting(panel == .configuration || chromeVisible)
-                .accessibilityHidden(!chromeIsVisible)
-                .padding(.horizontal, chromeHorizontalPadding)
-                .padding(.top, 18)
-                .padding(.bottom, 24)
+
+                if configurationVisible {
+                    Color.black.opacity(0.001)
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            dismissConfiguration()
+                        }
+
+                    ConfigurationPanel(
+                        breathsPerMinute: $breathsPerMinute,
+                        hapticIntensity: $hapticIntensity,
+                        hapticFrequency: $hapticFrequency,
+                        hapticCurveTiming: $hapticCurveTiming
+                    )
+                    .padding(.horizontal, chromeHorizontalPadding)
+                    .transition(.opacity)
+                }
             }
         }
         .onAppear {
             if let launchOverride = MeditationPanel.launchOverride() {
-                setPanel(launchOverride, reveal: false)
+                if launchOverride == .configuration {
+                    presentConfiguration(animated: false)
+                } else {
+                    setPanel(launchOverride, reveal: false)
+                }
+            } else if MeditationPanel(rawValue: panelRawValue) == .configuration {
+                setPanel(MeditationPanel.panel(for: currentMode), reveal: false)
+                presentConfiguration(animated: false)
             }
 
             startedAt = Date().addingTimeInterval(-BreathingTimeline.initialElapsedOffset)
@@ -127,7 +156,12 @@ struct ContentView: View {
                 return
             }
 
-            setPanel(panel)
+            if panel == .configuration {
+                presentConfiguration()
+            } else {
+                dismissConfiguration()
+                setPanel(panel)
+            }
         }
         .task(id: hapticsLoopID) {
             guard hapticsLoopID.sceneIsActive else {
@@ -153,13 +187,13 @@ struct ContentView: View {
             haptics.startLoopingPattern(for: timeline, elapsed: Date().timeIntervalSince(startedAt))
         }
         .task(id: chromeFadeToken) {
-            guard panel != .configuration else {
+            guard !configurationVisible else {
                 return
             }
 
             try? await Task.sleep(nanoseconds: 3_000_000_000)
 
-            guard !Task.isCancelled, panel != .configuration else {
+            guard !Task.isCancelled, !configurationVisible else {
                 return
             }
 
@@ -177,14 +211,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private func panelChromeContent(_ state: PanelContentState) -> some View {
-        if state.panel == .configuration {
-            ConfigurationPanel(
-                breathsPerMinute: $breathsPerMinute,
-                hapticIntensity: $hapticIntensity,
-                hapticFrequency: $hapticFrequency,
-                hapticCurveTiming: $hapticCurveTiming
-            )
-        } else if let mode = state.panel.animationMode {
+        if let mode = state.panel.animationMode {
             TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
                 BreathCaption(
                     mode: mode,
@@ -206,7 +233,7 @@ struct ContentView: View {
     }
 
     private func interactiveTranslation(for value: DragGesture.Value) -> CGFloat {
-        guard settlingPanelTransition == nil, buttonPanelTransition == nil else {
+        guard settlingPanelTransition == nil, !configurationVisible else {
             return 0
         }
 
@@ -225,7 +252,7 @@ struct ContentView: View {
     }
 
     private func settleSwipe(_ value: DragGesture.Value, width: CGFloat) {
-        guard settlingPanelTransition == nil, buttonPanelTransition == nil else {
+        guard settlingPanelTransition == nil, !configurationVisible else {
             return
         }
 
@@ -253,8 +280,7 @@ struct ContentView: View {
             fromPanel: panel,
             toPanel: targetPanel,
             direction: direction,
-            progress: startingProgress,
-            style: .swipe
+            progress: startingProgress
         )
         let token = panelTransitionToken + 1
 
@@ -307,53 +333,6 @@ struct ContentView: View {
         }
     }
 
-    private func selectPanel(_ newPanel: MeditationPanel) {
-        guard newPanel != panel else {
-            revealChromeTemporarily()
-            return
-        }
-
-        guard settlingPanelTransition == nil, buttonPanelTransition == nil,
-              let direction = PanelSwipeDirection(from: panel, to: newPanel) else {
-            return
-        }
-
-        let transition = PanelTransition(
-            fromPanel: panel,
-            toPanel: newPanel,
-            direction: direction,
-            progress: 0,
-            style: .button
-        )
-        let token = panelTransitionToken + 1
-
-        panelTransitionToken = token
-        buttonPanelTransition = transition
-        revealChromeTemporarily()
-
-        withAnimation(.easeInOut(duration: 0.30)) {
-            buttonPanelTransition = transition.withProgress(1)
-        }
-
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 310_000_000)
-
-            guard panelTransitionToken == token else {
-                return
-            }
-
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-
-            withTransaction(transaction) {
-                setPanel(newPanel, reveal: false)
-                buttonPanelTransition = nil
-            }
-
-            revealChromeTemporarily()
-        }
-    }
-
     private func setPanel(_ newPanel: MeditationPanel, reveal: Bool = true) {
         panelRawValue = newPanel.rawValue
 
@@ -363,6 +342,34 @@ struct ContentView: View {
 
         if reveal {
             revealChromeTemporarily()
+        }
+    }
+
+    private func presentConfiguration(animated: Bool = true) {
+        let update = {
+            configurationVisible = true
+            chromeVisible = true
+            chromeFadeToken += 1
+        }
+
+        if animated {
+            withAnimation(.easeOut(duration: 0.22), update)
+        } else {
+            update()
+        }
+    }
+
+    private func dismissConfiguration(animated: Bool = true) {
+        let update = {
+            configurationVisible = false
+            chromeVisible = true
+            chromeFadeToken += 1
+        }
+
+        if animated {
+            withAnimation(.easeOut(duration: 0.20), update)
+        } else {
+            update()
         }
     }
 
@@ -418,10 +425,6 @@ struct ContentView: View {
     }
 
     private func panelTransition(width: CGFloat) -> PanelTransition? {
-        if let buttonPanelTransition {
-            return buttonPanelTransition
-        }
-
         if let settlingPanelTransition {
             return settlingPanelTransition
         }
@@ -435,8 +438,7 @@ struct ContentView: View {
             fromPanel: panel,
             toPanel: targetPanel,
             direction: direction,
-            progress: min(0.98, max(0, abs(liveSwipeTranslation) / max(width, 1))),
-            style: .swipe
+            progress: min(0.98, max(0, abs(liveSwipeTranslation) / max(width, 1)))
         )
     }
 
@@ -456,8 +458,7 @@ struct ContentView: View {
             fromMode: fromMode,
             toMode: toMode,
             direction: transition.direction,
-            progress: transition.progress,
-            style: transition.style
+            progress: transition.progress
         )
     }
 
@@ -478,10 +479,10 @@ struct ContentView: View {
 
         if candidate == transition.fromPanel {
             opacity = Double(1 - progress)
-            offsetX = transition.style == .swipe ? transition.direction.sign * progress * 34 : 0
+            offsetX = transition.direction.sign * progress * 34
         } else if candidate == transition.toPanel {
             opacity = Double(progress)
-            offsetX = transition.style == .swipe ? -transition.direction.sign * (1 - progress) * 34 : 0
+            offsetX = -transition.direction.sign * (1 - progress) * 34
         } else {
             return nil
         }
@@ -489,17 +490,6 @@ struct ContentView: View {
         return PanelContentState(panel: candidate, opacity: opacity, offsetX: offsetX)
     }
 
-    private func panelSwitcherSelection(for transition: PanelTransition?) -> MeditationPanel {
-        guard let transition else {
-            return panel
-        }
-
-        if transition.style == .button || transition.progress >= 0.5 {
-            return transition.toPanel
-        }
-
-        return transition.fromPanel
-    }
 }
 
 private struct HapticsLoopID: Equatable {
@@ -580,7 +570,7 @@ private struct SceneEdgeFadeMask: View {
     var body: some View {
         if let edge, strength > 0.001 {
             LinearGradient(
-                stops: stops(edge: edge, strength: max(0.02, min(0.36, strength))),
+                stops: stops(edge: edge, strength: max(0.06, min(0.62, strength))),
                 startPoint: .leading,
                 endPoint: .trailing
             )
@@ -594,6 +584,7 @@ private struct SceneEdgeFadeMask: View {
         case .leading:
             [
                 .init(color: .clear, location: 0),
+                .init(color: .clear, location: strength * 0.22),
                 .init(color: .white, location: strength),
                 .init(color: .white, location: 1),
             ]
@@ -601,15 +592,11 @@ private struct SceneEdgeFadeMask: View {
             [
                 .init(color: .white, location: 0),
                 .init(color: .white, location: 1 - strength),
+                .init(color: .clear, location: 1 - strength * 0.22),
                 .init(color: .clear, location: 1),
             ]
         }
     }
-}
-
-private enum PanelTransitionStyle: Equatable {
-    case swipe
-    case button
 }
 
 private struct PanelTransition: Equatable {
@@ -617,15 +604,13 @@ private struct PanelTransition: Equatable {
     let toPanel: MeditationPanel
     let direction: PanelSwipeDirection
     let progress: CGFloat
-    let style: PanelTransitionStyle
 
     func withProgress(_ progress: CGFloat) -> PanelTransition {
         PanelTransition(
             fromPanel: fromPanel,
             toPanel: toPanel,
             direction: direction,
-            progress: progress,
-            style: style
+            progress: progress
         )
     }
 }
@@ -635,7 +620,6 @@ private struct MeditationSceneTransition: Equatable {
     let toMode: MeditationAnimationMode
     let direction: PanelSwipeDirection
     let progress: CGFloat
-    let style: PanelTransitionStyle
 }
 
 private struct MeditationScene: View {
@@ -654,7 +638,7 @@ private struct MeditationScene: View {
                 let progress = transition?.progress ?? 0
                 let sign = transition?.direction.sign ?? 0
                 let baseMode = transition?.fromMode ?? mode
-                let parallax = transition?.style == .button ? 0 : min(width * 0.075, 34)
+                let parallax = min(width * 0.075, 34)
 
                 ZStack {
                     MeditationVisualLayer(
@@ -668,7 +652,7 @@ private struct MeditationScene: View {
                     .mask {
                         SceneEdgeFadeMask(
                             edge: transition?.direction.outgoingFadeEdge,
-                            strength: transition?.style == .swipe ? progress * 0.16 : 0
+                            strength: transition == nil ? 0 : progress * 0.42
                         )
                     }
 
@@ -684,7 +668,7 @@ private struct MeditationScene: View {
                         .mask {
                             SceneEdgeFadeMask(
                                 edge: transition.direction.incomingFadeEdge,
-                                strength: transition.style == .swipe ? (1 - transition.progress) * 0.22 : 0
+                                strength: (1 - transition.progress) * 0.56
                             )
                         }
                     }
@@ -854,57 +838,54 @@ private struct ConfigurationPanel: View {
     @Binding var hapticCurveTiming: Double
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Configuration", systemImage: "slider.horizontal.3")
-                    .font(.system(.title3, design: .rounded, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.94))
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Configuration", systemImage: "slider.horizontal.3")
+                .font(.system(.title3, design: .rounded, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.94))
 
-                ConfigurationSlider(
-                    title: "Breathing speed",
-                    valueText: String(format: "%.1f bpm", breathsPerMinute),
-                    systemImage: "wind",
-                    value: $breathsPerMinute,
-                    range: MeditationSettings.breathsPerMinuteRange,
-                    step: 0.5,
-                    accent: Color(red: 1.0, green: 0.74, blue: 0.49)
-                )
+            ConfigurationSlider(
+                title: "Breathing speed",
+                valueText: String(format: "%.1f bpm", breathsPerMinute),
+                systemImage: "wind",
+                value: $breathsPerMinute,
+                range: MeditationSettings.breathsPerMinuteRange,
+                step: 0.5,
+                accent: Color(red: 1.0, green: 0.74, blue: 0.49)
+            )
 
-                ConfigurationSlider(
-                    title: "Haptics intensity",
-                    valueText: "\(Int((hapticIntensity * 100).rounded()))%",
-                    systemImage: "waveform.path",
-                    value: $hapticIntensity,
-                    range: MeditationSettings.hapticIntensityRange,
-                    step: 0.05,
-                    accent: Color(red: 0.72, green: 0.56, blue: 1.0)
-                )
+            ConfigurationSlider(
+                title: "Haptics intensity",
+                valueText: "\(Int((hapticIntensity * 100).rounded()))%",
+                systemImage: "waveform.path",
+                value: $hapticIntensity,
+                range: MeditationSettings.hapticIntensityRange,
+                step: 0.05,
+                accent: Color(red: 0.72, green: 0.56, blue: 1.0)
+            )
 
-                ConfigurationSlider(
-                    title: "Haptics frequency",
-                    valueText: "\(Int((hapticFrequency * 100).rounded()))%",
-                    systemImage: "dot.radiowaves.left.and.right",
-                    value: $hapticFrequency,
-                    range: MeditationSettings.hapticFrequencyRange,
-                    step: 0.05,
-                    accent: Color(red: 0.56, green: 0.86, blue: 1.0)
-                )
+            ConfigurationSlider(
+                title: "Haptics frequency",
+                valueText: "\(Int((hapticFrequency * 100).rounded()))%",
+                systemImage: "dot.radiowaves.left.and.right",
+                value: $hapticFrequency,
+                range: MeditationSettings.hapticFrequencyRange,
+                step: 0.05,
+                accent: Color(red: 0.56, green: 0.86, blue: 1.0)
+            )
 
-                ConfigurationSlider(
-                    title: "Pulse timing",
-                    valueText: timingText,
-                    systemImage: "arrow.left.and.right",
-                    value: $hapticCurveTiming,
-                    range: MeditationSettings.hapticCurveTimingRange,
-                    step: 0.05,
-                    accent: Color(red: 0.80, green: 0.92, blue: 1.0)
-                )
-            }
+            ConfigurationSlider(
+                title: "Pulse timing",
+                valueText: timingText,
+                systemImage: "arrow.left.and.right",
+                value: $hapticCurveTiming,
+                range: MeditationSettings.hapticCurveTimingRange,
+                step: 0.05,
+                accent: Color(red: 0.80, green: 0.92, blue: 1.0)
+            )
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(maxHeight: 660)
+        .frame(maxWidth: 380, alignment: .leading)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 32, style: .continuous)
@@ -971,6 +952,26 @@ private struct ConfigurationSlider: View {
     }
 }
 
+private struct ConfigButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.84))
+                .frame(width: 44, height: 44)
+                .background(.black.opacity(0.18), in: Circle())
+                .overlay(
+                    Circle()
+                        .stroke(.white.opacity(0.14), lineWidth: 1)
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open configuration")
+    }
+}
 
 private struct BreathCaption: View {
     let mode: MeditationAnimationMode
@@ -1051,59 +1052,6 @@ private struct BreathWave: View {
                 Path(ellipseIn: CGRect(x: progressX - 3, y: midY - 3 - CGFloat(snapshot.sine) * amplitude, width: 6, height: 6)),
                 with: .color(.white.opacity(0.86))
             )
-        }
-    }
-}
-
-private struct PanelSwitcher: View {
-    let selection: MeditationPanel
-    let onSelect: (MeditationPanel) -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(MeditationPanel.allCases) { panel in
-                Button {
-                    onSelect(panel)
-                } label: {
-                    ZStack {
-                        panelIcon(panel)
-                            .frame(width: 16, height: 16)
-                            .shadow(color: panel.accent.opacity(panel == selection ? 0.9 : 0.0), radius: 7)
-                    }
-                    .foregroundStyle(.white.opacity(panel == selection ? 0.92 : 0.56))
-                    .frame(width: 48, height: 44)
-                    .background(
-                        Capsule()
-                            .fill(.white.opacity(panel == selection ? 0.14 : 0.07))
-                    )
-                    .overlay(
-                        Capsule()
-                            .stroke(.white.opacity(panel == selection ? 0.18 : 0.08), lineWidth: 1)
-                    )
-                    .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Panel: \(panel.title)")
-                .accessibilityValue(panel == selection ? "Selected" : "")
-                .accessibilityHint(panel == selection ? "Current panel" : "Switches the meditation panel")
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .background(.black.opacity(0.16), in: Capsule())
-    }
-
-    @ViewBuilder
-    private func panelIcon(_ panel: MeditationPanel) -> some View {
-        switch panel {
-        case .configuration:
-            Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(panel.accent)
-        case .breathingHorizon, .silkRibbon, .inkBloom, .softGlow:
-            Circle()
-                .fill(panel.accent)
-                .frame(width: panel == selection ? 8 : 7, height: panel == selection ? 8 : 7)
         }
     }
 }

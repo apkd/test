@@ -182,7 +182,7 @@ struct BreathingTimelineTests {
     }
 
     @Test
-    func configurationIsTheFirstCarouselPanel() {
+    func configurationIsAddressableOutsideSwipeNavigation() {
         #expect(MeditationPanel.allCases.map(\.title) == [
             "Configuration",
             "Breathing horizon",
@@ -195,8 +195,10 @@ struct BreathingTimelineTests {
             MeditationAnimationMode.launchEnvironmentKey: "config",
         ]) == .configuration)
         #expect(MeditationPanel.launchOverride(environment: [:]) == nil)
+        #expect(MeditationPanel.configuration.next == .breathingHorizon)
         #expect(MeditationPanel.breathingHorizon.next == .silkRibbon)
         #expect(MeditationPanel.configuration.previous == nil)
+        #expect(MeditationPanel.breathingHorizon.previous == nil)
         #expect(MeditationPanel.inkBloom.next == .softGlow)
         #expect(MeditationPanel.silkRibbon.previous == .breathingHorizon)
         #expect(MeditationPanel.silkRibbon.next == .inkBloom)
