@@ -297,28 +297,20 @@ jobs:
 
           simulator_id="${{ steps.simulator.outputs.simulator_id }}"
           bundle_id="dev.tryfinally.test-app"
-          report_dir="app-smoke-report"
-          screenshots_dir="$report_dir/screenshots"
-          report="$report_dir/index.md"
-          summary="$report_dir/summary.md"
-          results="$report_dir/results.tsv"
+          screenshots_dir="app-smoke-screenshots"
+          logs_dir="$RUNNER_TEMP/app-smoke-logs"
+          results="$RUNNER_TEMP/app-smoke-results.tsv"
 
+          rm -rf "$screenshots_dir"
           mkdir -p "$screenshots_dir"
+          mkdir -p "$logs_dir"
           : > "$results"
-
-          {
-            echo "# App launch smoke report"
-            echo
-            echo "Each screen is launched through \`SIMCTL_CHILD_MEDITATION_ANIMATION_MODE\`, then captured with \`xcrun simctl io screenshot\`."
-            echo
-            echo "Inline screenshots render after downloading this artifact and opening this Markdown file beside the \`screenshots/\` directory."
-          } > "$report"
 
           capture_mode() {
             local mode="$1"
             local title="$2"
             local file="$screenshots_dir/$mode.png"
-            local launch_log="$report_dir/$mode-launch.txt"
+            local launch_log="$logs_dir/$mode-launch.txt"
             local result="passed"
 
             if SIMCTL_CHILD_MEDITATION_ANIMATION_MODE="$mode" \
@@ -332,20 +324,6 @@ jobs:
               result="failed"
               cat "$launch_log" >&2 || true
             fi
-
-            {
-              echo
-              echo "## $title"
-              echo
-              echo "**Launch result:** $result"
-              echo
-
-              if [[ -f "$file" ]]; then
-                printf '![%s](screenshots/%s.png)\n' "$title" "$mode"
-              else
-                echo "Screenshot was not captured."
-              fi
-            } >> "$report"
 
             printf '%s\t%s\n' "$title" "$result" >> "$results"
 
@@ -363,25 +341,22 @@ jobs:
           {
             echo "# App launch smoke report"
             echo
-            echo "Screenshots are uploaded in the \`app-smoke-report\` artifact."
-            echo
-            echo "GitHub Actions summaries cannot render workspace-relative or artifact-relative image files inline. On master, the release job uploads these screenshots as release assets and embeds those release URLs in the rolling release notes."
+            echo "Screenshots are uploaded as flat PNG files in the \`app-smoke-screenshots\` artifact."
             echo
 
             while IFS=$'\t' read -r title result; do
               printf -- '- **%s**: %s\n' "$title" "$result"
             done < "$results"
-          } > "$summary"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          cat "$summary" >> "$GITHUB_STEP_SUMMARY"
           exit "$overall"
 
-      - name: Upload app smoke report
+      - name: Upload app smoke screenshots
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: app-smoke-report
-          path: app-smoke-report
+          name: app-smoke-screenshots
+          path: app-smoke-screenshots/*.png
           if-no-files-found: error
 
   release:
@@ -408,26 +383,6 @@ jobs:
           name: TestApp-ipa
           path: release-assets
 
-      - name: Download app smoke report artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: app-smoke-report
-          path: app-smoke-report
-
-      - name: Prepare screenshot release assets
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p release-assets
-
-          if [[ -d app-smoke-report/screenshots ]]; then
-            for screenshot in app-smoke-report/screenshots/*.png; do
-              [[ -e "$screenshot" ]] || continue
-              cp "$screenshot" "release-assets/app-smoke-$(basename "$screenshot")"
-            done
-          fi
-
       - name: Prepare release notes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -446,25 +401,6 @@ jobs:
             echo
             echo "Included artifacts:"
             echo "- TestApp.ipa"
-            echo "- App launch smoke screenshots"
-            echo
-            echo "Screenshots:"
-            echo
-            echo "### Configuration"
-            echo
-            echo "![Configuration]($repo_url/releases/download/release/app-smoke-config.png)"
-            echo
-            echo "### Breathing horizon"
-            echo
-            echo "![Breathing horizon]($repo_url/releases/download/release/app-smoke-breathing-horizon.png)"
-            echo
-            echo "### Silk ribbon"
-            echo
-            echo "![Silk ribbon]($repo_url/releases/download/release/app-smoke-silk-ribbon.png)"
-            echo
-            echo "### Ink bloom"
-            echo
-            echo "![Ink bloom]($repo_url/releases/download/release/app-smoke-ink-bloom.png)"
             echo
             echo "Latest changes:"
             echo
@@ -519,6 +455,10 @@ jobs:
           else
             gh release create "$tag" --title "$title" --notes-file "$notes" --target "$GITHUB_SHA" --latest
           fi
+
+          for stale_asset in app-smoke-config.png app-smoke-breathing-horizon.png app-smoke-silk-ribbon.png app-smoke-ink-bloom.png; do
+            gh release delete-asset "$tag" "$stale_asset" -y >/dev/null 2>&1 || true
+          done
 
           mapfile -t files < <(find release-assets -maxdepth 1 -type f | sort)
           if [[ "${#files[@]}" -eq 0 ]]; then
