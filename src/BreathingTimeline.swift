@@ -85,6 +85,101 @@ enum MeditationAnimationMode: Int, CaseIterable, Identifiable {
     }
 }
 
+enum MeditationPanel: Int, CaseIterable, Identifiable {
+    case configuration
+    case breathingHorizon
+    case silkRibbon
+    case inkBloom
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .configuration:
+            "Configuration"
+        case .breathingHorizon:
+            MeditationAnimationMode.breathingHorizon.title
+        case .silkRibbon:
+            MeditationAnimationMode.silkRibbon.title
+        case .inkBloom:
+            MeditationAnimationMode.inkBloom.title
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .configuration:
+            "Config"
+        case .breathingHorizon:
+            MeditationAnimationMode.breathingHorizon.shortTitle
+        case .silkRibbon:
+            MeditationAnimationMode.silkRibbon.shortTitle
+        case .inkBloom:
+            MeditationAnimationMode.inkBloom.shortTitle
+        }
+    }
+
+    var animationMode: MeditationAnimationMode? {
+        switch self {
+        case .configuration:
+            nil
+        case .breathingHorizon:
+            .breathingHorizon
+        case .silkRibbon:
+            .silkRibbon
+        case .inkBloom:
+            .inkBloom
+        }
+    }
+
+    var accent: Color {
+        animationMode?.accent ?? Color(red: 0.80, green: 0.86, blue: 1.0)
+    }
+
+    var next: MeditationPanel {
+        MeditationPanel(rawValue: (rawValue + 1) % Self.allCases.count) ?? .configuration
+    }
+
+    var previous: MeditationPanel {
+        MeditationPanel(rawValue: (rawValue + Self.allCases.count - 1) % Self.allCases.count) ?? .inkBloom
+    }
+
+    static func panel(for mode: MeditationAnimationMode) -> MeditationPanel {
+        switch mode {
+        case .silkRibbon:
+            .silkRibbon
+        case .breathingHorizon:
+            .breathingHorizon
+        case .inkBloom:
+            .inkBloom
+        }
+    }
+
+    static func launchPanel(environment: [String: String] = ProcessInfo.processInfo.environment) -> MeditationPanel {
+        if let rawValue = environment[MeditationAnimationMode.launchEnvironmentKey]?.lowercased(),
+           rawValue == "configuration" || rawValue == "config" {
+            return .configuration
+        }
+
+        return panel(for: MeditationAnimationMode.launchMode(environment: environment))
+    }
+}
+
+struct MeditationSettings: Equatable {
+    static let breathsPerMinuteRange: ClosedRange<Double> = 4...12
+    static let hapticIntensityRange: ClosedRange<Double> = 0...1
+
+    var breathsPerMinute: Double = 7
+    var hapticIntensity: Double = 1
+
+    var timeline: BreathingTimeline {
+        BreathingTimeline(
+            breathsPerMinute: breathsPerMinute,
+            hapticIntensity: hapticIntensity
+        )
+    }
+}
+
 enum BreathPhase: Equatable {
     case inhale
     case exhale
@@ -108,6 +203,7 @@ struct BreathingSnapshot: Equatable {
     let phase: BreathPhase
     let breathAmount: Double
     let hapticRate: Double
+    let hapticIntensity: Double
     let hapticPulsesPerSecond: Double
 
     var isInhale: Bool { phase == .inhale }
@@ -117,7 +213,8 @@ struct BreathingTimeline {
     static let initialElapsedOffset: TimeInterval = 0.35
 
     var breathsPerMinute: Double = 7
-    var peakHapticPulsesPerSecond: Double = 2.8
+    var peakHapticPulsesPerSecond: Double = 5.0
+    var hapticIntensity: Double = 1
 
     var cycleDuration: TimeInterval {
         60 / breathsPerMinute
@@ -137,7 +234,8 @@ struct BreathingTimeline {
         let easedPhaseProgress = Self.smoothstep(max(0, min(1, phaseProgress)))
         let breathAmount = isInhale ? easedPhaseProgress : 1 - easedPhaseProgress
         let hapticRate = isInhale ? max(0, sine) : 0
-        let hapticPulsesPerSecond = peakHapticPulsesPerSecond * hapticRate
+        let clampedHapticIntensity = max(0, min(1, hapticIntensity))
+        let hapticPulsesPerSecond = clampedHapticIntensity > 0 ? peakHapticPulsesPerSecond * hapticRate : 0
 
         return BreathingSnapshot(
             elapsed: safeElapsed,
@@ -148,6 +246,7 @@ struct BreathingTimeline {
             phase: isInhale ? .inhale : .exhale,
             breathAmount: breathAmount,
             hapticRate: hapticRate,
+            hapticIntensity: clampedHapticIntensity,
             hapticPulsesPerSecond: hapticPulsesPerSecond
         )
     }

@@ -1,22 +1,35 @@
+import Foundation
 import SwiftUI
 
 @MainActor
 struct ContentView: View {
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var startedAt = Date()
-    @State private var mode = MeditationAnimationMode.launchMode()
+    @State private var panel = MeditationPanel.launchPanel()
+    @State private var currentMode = MeditationAnimationMode.launchMode()
+    @State private var settings = MeditationSettings()
+    @State private var chromeVisible = true
+    @State private var chromeFadeToken = 0
     @StateObject private var haptics = BreathHapticCoordinator()
 
-    private let timeline = BreathingTimeline()
+    private var timeline: BreathingTimeline {
+        settings.timeline
+    }
+
+    private var activeAnimationMode: MeditationAnimationMode {
+        panel.animationMode ?? currentMode
+    }
+
     private var hapticsLoopID: HapticsLoopID {
-        HapticsLoopID(startedAt: startedAt, isSceneActive: scenePhase == .active)
+        HapticsLoopID(startedAt: startedAt, settings: settings)
     }
 
     var body: some View {
+        let activeMode = activeAnimationMode
+
         ZStack {
-            MeditationScene(mode: mode, startedAt: startedAt, timeline: timeline, reduceMotion: reduceMotion)
+            MeditationScene(mode: activeMode, startedAt: startedAt, timeline: timeline, reduceMotion: reduceMotion)
                 .ignoresSafeArea()
 
             VStack {
@@ -24,36 +37,58 @@ struct ContentView: View {
 
                 Spacer()
 
-                TimelineView(.animation) { context in
-                    BreathCaption(
-                        mode: mode,
-                        snapshot: timeline.snapshot(at: context.date, startedAt: startedAt),
-                        reduceMotion: reduceMotion
-                    )
+                if panel == .configuration {
+                    ConfigurationPanel(settings: $settings)
+                        .padding(.bottom, 16)
+                } else {
+                    TimelineView(.animation) { context in
+                        BreathCaption(
+                            mode: activeMode,
+                            snapshot: timeline.snapshot(at: context.date, startedAt: startedAt),
+                            reduceMotion: reduceMotion
+                        )
+                    }
                 }
 
-                ModeSwitcher(selection: $mode)
+                PanelSwitcher(selection: $panel)
             }
+            .opacity(panel == .configuration || chromeVisible ? 1 : 0)
+            .allowsHitTesting(panel == .configuration || chromeVisible)
+            .accessibilityHidden(panel != .configuration && !chromeVisible)
             .padding(.horizontal, 22)
             .padding(.top, 18)
             .padding(.bottom, 24)
         }
         .contentShape(Rectangle())
         .gesture(swipeGesture)
+        .simultaneousGesture(TapGesture().onEnded { revealChromeTemporarily() })
         .onAppear {
             startedAt = Date().addingTimeInterval(-BreathingTimeline.initialElapsedOffset)
-            updateMeditationActive(scenePhase == .active)
+            updateCurrentMode(from: panel)
+            updateMeditationActive(true)
+            revealChromeTemporarily()
         }
         .task(id: hapticsLoopID) {
-            guard scenePhase == .active else {
-                haptics.stop()
+            await runHapticsLoop(startedAt: startedAt, settings: settings)
+        }
+        .task(id: chromeFadeToken) {
+            guard panel != .configuration else {
                 return
             }
 
-            await runHapticsLoop(startedAt: startedAt)
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+
+            guard !Task.isCancelled, panel != .configuration else {
+                return
+            }
+
+            withAnimation(.easeOut(duration: 0.45)) {
+                chromeVisible = false
+            }
         }
-        .onChange(of: scenePhase) { _, newPhase in
-            updateMeditationActive(newPhase == .active)
+        .onChange(of: panel) { _, newPanel in
+            updateCurrentMode(from: newPanel)
+            revealChromeTemporarily()
         }
         .onDisappear {
             updateMeditationActive(false)
@@ -82,12 +117,14 @@ struct ContentView: View {
                 }
 
                 withAnimation(.easeInOut(duration: 0.38)) {
-                    mode = horizontal < 0 ? mode.next : mode.previous
+                    panel = horizontal < 0 ? panel.next : panel.previous
                 }
             }
     }
 
-    private func runHapticsLoop(startedAt: Date) async {
+    private func runHapticsLoop(startedAt: Date, settings: MeditationSettings) async {
+        let timeline = settings.timeline
+
         while !Task.isCancelled {
             let date = Date()
             haptics.update(with: timeline.snapshot(at: date, startedAt: startedAt), at: date)
@@ -95,6 +132,19 @@ struct ContentView: View {
         }
 
         haptics.stop()
+    }
+
+    private func updateCurrentMode(from panel: MeditationPanel) {
+        if let animationMode = panel.animationMode {
+            currentMode = animationMode
+        }
+    }
+
+    private func revealChromeTemporarily() {
+        withAnimation(.easeOut(duration: 0.22)) {
+            chromeVisible = true
+        }
+        chromeFadeToken += 1
     }
 
     private func updateMeditationActive(_ active: Bool) {
@@ -108,7 +158,7 @@ struct ContentView: View {
 
 private struct HapticsLoopID: Equatable {
     let startedAt: Date
-    let isSceneActive: Bool
+    let settings: MeditationSettings
 }
 
 private struct MeditationScene: View {
@@ -206,6 +256,95 @@ private struct MeditationArtwork: View {
             }
         }
         .drawingGroup()
+    }
+}
+
+private struct ConfigurationPanel: View {
+    @Binding var settings: MeditationSettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 7) {
+                Label("Configuration", systemImage: "slider.horizontal.3")
+                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.94))
+
+                Text("Tune the breathing loop and haptic strength.")
+                    .font(.system(.subheadline, design: .rounded, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.68))
+            }
+
+            ConfigurationSlider(
+                title: "Breathing speed",
+                valueText: String(format: "%.1f bpm", settings.breathsPerMinute),
+                systemImage: "wind",
+                value: $settings.breathsPerMinute,
+                range: MeditationSettings.breathsPerMinuteRange,
+                step: 0.5,
+                accent: Color(red: 1.0, green: 0.74, blue: 0.49)
+            )
+
+            ConfigurationSlider(
+                title: "Haptics intensity",
+                valueText: "\(Int((settings.hapticIntensity * 100).rounded()))%",
+                systemImage: "waveform.path",
+                value: $settings.hapticIntensity,
+                range: MeditationSettings.hapticIntensityRange,
+                step: 0.05,
+                accent: Color(red: 0.72, green: 0.56, blue: 1.0)
+            )
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 24)
+        .frame(maxWidth: 380, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .stroke(.white.opacity(0.14), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.18), radius: 24, y: 18)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct ConfigurationSlider: View {
+    let title: String
+    let valueText: String
+    let systemImage: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(.callout, design: .rounded, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .frame(width: 24)
+
+                Text(title)
+                    .font(.system(.callout, design: .rounded, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.88))
+
+                Spacer()
+
+                Text(valueText)
+                    .font(.system(.callout, design: .rounded, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.72))
+            }
+
+            Slider(value: $value, in: range, step: step)
+                .tint(accent)
+        }
+        .padding(16)
+        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(.white.opacity(0.10), lineWidth: 1)
+        )
     }
 }
 
@@ -313,50 +452,63 @@ private struct BreathWave: View {
     }
 }
 
-private struct ModeSwitcher: View {
-    @Binding var selection: MeditationAnimationMode
+private struct PanelSwitcher: View {
+    @Binding var selection: MeditationPanel
 
     var body: some View {
         HStack(spacing: 8) {
-            ForEach(MeditationAnimationMode.allCases) { mode in
+            ForEach(MeditationPanel.allCases) { panel in
                 Button {
                     withAnimation(.easeInOut(duration: 0.28)) {
-                        selection = mode
+                        selection = panel
                     }
                 } label: {
                     HStack(spacing: 7) {
-                        Circle()
-                            .fill(mode.accent)
-                            .frame(width: 7, height: 7)
-                            .shadow(color: mode.accent.opacity(mode == selection ? 0.9 : 0.0), radius: 7)
+                        panelIcon(panel)
+                            .frame(width: 14, height: 14)
+                            .shadow(color: panel.accent.opacity(panel == selection ? 0.9 : 0.0), radius: 7)
 
-                        if mode == selection {
-                            Text(mode.shortTitle)
+                        if panel == selection {
+                            Text(panel.shortTitle)
                                 .font(.system(.caption, design: .rounded, weight: .semibold))
                                 .lineLimit(1)
                         }
                     }
-                    .foregroundStyle(.white.opacity(mode == selection ? 0.92 : 0.56))
+                    .foregroundStyle(.white.opacity(panel == selection ? 0.92 : 0.56))
                     .frame(minWidth: 44, minHeight: 44)
-                    .padding(.horizontal, mode == selection ? 12 : 9)
+                    .padding(.horizontal, panel == selection ? 12 : 9)
                     .background(
                         Capsule()
-                            .fill(.white.opacity(mode == selection ? 0.14 : 0.07))
+                            .fill(.white.opacity(panel == selection ? 0.14 : 0.07))
                     )
                     .overlay(
                         Capsule()
-                            .stroke(.white.opacity(mode == selection ? 0.18 : 0.08), lineWidth: 1)
+                            .stroke(.white.opacity(panel == selection ? 0.18 : 0.08), lineWidth: 1)
                     )
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Animation mode: \(mode.title)")
-                .accessibilityValue(mode == selection ? "Selected" : "")
-                .accessibilityHint(mode == selection ? "Current animation mode" : "Switches the breathing animation")
+                .accessibilityLabel("Panel: \(panel.title)")
+                .accessibilityValue(panel == selection ? "Selected" : "")
+                .accessibilityHint(panel == selection ? "Current panel" : "Switches the meditation panel")
             }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(.black.opacity(0.16), in: Capsule())
+    }
+
+    @ViewBuilder
+    private func panelIcon(_ panel: MeditationPanel) -> some View {
+        switch panel {
+        case .configuration:
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(panel.accent)
+        case .breathingHorizon, .silkRibbon, .inkBloom:
+            Circle()
+                .fill(panel.accent)
+                .frame(width: 7, height: 7)
+        }
     }
 }

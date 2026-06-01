@@ -48,6 +48,26 @@ struct BreathingTimelineTests {
     }
 
     @Test
+    func hapticIntensityCanDisablePulses() {
+        let timeline = BreathingTimeline(hapticIntensity: 0)
+        let inhalePeak = timeline.snapshot(elapsed: timeline.cycleDuration * 0.25)
+
+        #expect(inhalePeak.hapticRate > 0)
+        #expect(inhalePeak.hapticIntensity == 0)
+        #expect(inhalePeak.hapticPulsesPerSecond == 0)
+    }
+
+    @Test
+    func meditationSettingsBuildsConfiguredTimeline() {
+        let settings = MeditationSettings(breathsPerMinute: 9.5, hapticIntensity: 0.4)
+        let timeline = settings.timeline
+        let inhalePeak = timeline.snapshot(elapsed: timeline.cycleDuration * 0.25)
+
+        #expect(abs(timeline.cycleDuration - 60.0 / 9.5) < 0.000_001)
+        #expect(abs(inhalePeak.hapticIntensity - 0.4) < 0.000_001)
+    }
+
+    @Test
     func hapticRateIsZeroThroughoutExhale() {
         let timeline = BreathingTimeline()
 
@@ -104,5 +124,21 @@ struct BreathingTimelineTests {
         #expect(MeditationAnimationMode.silkRibbon.previous == .inkBloom)
         #expect(MeditationAnimationMode.breathingHorizon.previous == .silkRibbon)
         #expect(MeditationAnimationMode.inkBloom.previous == .breathingHorizon)
+    }
+
+    @Test
+    func configurationIsTheFirstCarouselPanel() {
+        #expect(MeditationPanel.allCases.map(\.title) == [
+            "Configuration",
+            "Breathing horizon",
+            "Silk ribbon",
+            "Ink bloom",
+        ])
+        #expect(MeditationPanel.launchPanel(environment: [:]) == .breathingHorizon)
+        #expect(MeditationPanel.launchPanel(environment: [
+            MeditationAnimationMode.launchEnvironmentKey: "config",
+        ]) == .configuration)
+        #expect(MeditationPanel.breathingHorizon.next == .silkRibbon)
+        #expect(MeditationPanel.inkBloom.next == .configuration)
     }
 }

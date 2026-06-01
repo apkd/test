@@ -12,34 +12,58 @@ enum MeditationRenderer {
         let height = size.height
         let motionScale: CGFloat = reduceMotion ? 0.35 : 1
         let breath = CGFloat(snapshot.breathAmount) * motionScale
-        let drift = CGFloat(time * 0.16)
         let centerY = height * (0.53 - 0.08 * breath)
-        let amplitude = height * (0.035 + 0.12 * breath)
 
         for layer in 0..<6 {
-            let layerOffset = CGFloat(layer - 2) * (8 + breath * 6)
-            let phase = drift + CGFloat(layer) * 0.72
-            let start = CGPoint(x: -width * 0.18, y: centerY + layerOffset + sin(phase) * 12)
-            let end = CGPoint(x: width * 1.18, y: centerY + layerOffset + cos(phase * 0.8) * 12)
+            let i = CGFloat(layer)
+            let layerNoise = pseudoNoise(layer + 41)
+            let layerBreath = breath * (0.68 + 0.54 * layerNoise)
+            let driftA = CGFloat(time) * (0.10 + 0.08 * pseudoNoise(layer + 7))
+            let driftB = CGFloat(time) * (0.15 + 0.11 * pseudoNoise(layer + 17))
+            let driftC = CGFloat(time) * (0.06 + 0.12 * pseudoNoise(layer + 29))
+            let phaseA = driftA + i * 0.91
+            let phaseB = driftB + i * 1.37
+            let phaseC = driftC + i * 2.11
+            let layerOffset = CGFloat(layer - 2) * (8 + layerBreath * 8)
+            let organicY = sin(phaseA) * (10 + 20 * layerNoise) + cos(phaseC) * (5 + 12 * layerBreath)
+            let amplitude = height * (0.035 + (0.095 + 0.052 * layerNoise) * layerBreath)
+            let start = CGPoint(x: -width * (0.20 + 0.04 * layerNoise), y: centerY + layerOffset + organicY)
+            let mid = CGPoint(
+                x: width * (0.46 + 0.05 * sin(phaseC)),
+                y: centerY + layerOffset + sin(phaseB) * (18 + 36 * layerBreath)
+            )
+            let end = CGPoint(
+                x: width * (1.16 + 0.05 * pseudoNoise(layer + 61)),
+                y: centerY + layerOffset + cos(phaseB * 0.8) * (12 + 18 * layerNoise)
+            )
             let control1 = CGPoint(
-                x: width * 0.18,
-                y: centerY - amplitude * (0.85 + 0.12 * CGFloat(layer)) + sin(phase + 0.7) * 18
+                x: width * (0.14 + 0.05 * pseudoNoise(layer + 11)),
+                y: centerY - amplitude * (0.74 + 0.16 * i) + sin(phaseB + 0.7) * (16 + 22 * layerNoise)
             )
             let control2 = CGPoint(
-                x: width * 0.76,
-                y: centerY + amplitude * (0.72 + 0.06 * CGFloat(layer)) + cos(phase + 1.3) * 18
+                x: width * (0.33 + 0.08 * pseudoNoise(layer + 23)),
+                y: centerY + amplitude * (0.48 + 0.08 * i) + cos(phaseA + 1.3) * (16 + 24 * layerBreath)
+            )
+            let control3 = CGPoint(
+                x: width * (0.61 + 0.08 * pseudoNoise(layer + 31)),
+                y: centerY - amplitude * (0.42 + 0.05 * i) + sin(phaseC + 0.4) * (18 + 20 * layerBreath)
+            )
+            let control4 = CGPoint(
+                x: width * (0.84 - 0.06 * pseudoNoise(layer + 47)),
+                y: centerY + amplitude * (0.72 + 0.06 * i) + cos(phaseB + 1.3) * (18 + 24 * layerNoise)
             )
 
             var path = Path()
             path.move(to: start)
-            path.addCurve(to: end, control1: control1, control2: control2)
+            path.addCurve(to: mid, control1: control1, control2: control2)
+            path.addCurve(to: end, control1: control3, control2: control4)
 
-            let lineWidth = 4 + breath * 19 + CGFloat(layer) * 2.5
-            let opacity = 0.12 + Double(breath) * 0.09 + Double(layer) * 0.018
+            let lineWidth = 4 + layerBreath * 19 + CGFloat(layer) * 2.5
+            let opacity = 0.12 + Double(layerBreath) * 0.09 + Double(layer) * 0.018
             let color = Color(red: 0.62, green: 0.82, blue: 1.0).opacity(opacity)
 
             context.drawLayer { layerContext in
-                layerContext.addFilter(.blur(radius: 10 + breath * 22))
+                layerContext.addFilter(.blur(radius: 10 + layerBreath * 22))
                 layerContext.stroke(
                     path,
                     with: .color(color),
@@ -49,7 +73,7 @@ enum MeditationRenderer {
 
             context.stroke(
                 path,
-                with: .color(Color.white.opacity(0.10 + Double(breath) * 0.22)),
+                with: .color(Color.white.opacity(0.10 + Double(layerBreath) * 0.22)),
                 style: StrokeStyle(lineWidth: max(1.6, lineWidth * 0.18), lineCap: .round, lineJoin: .round)
             )
         }

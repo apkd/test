@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 #if os(iOS)
+import CoreHaptics
 import UIKit
 #endif
 
@@ -11,6 +12,7 @@ final class BreathHapticCoordinator: ObservableObject {
 
     #if os(iOS)
     private var generator: UIImpactFeedbackGenerator?
+    private var coreHapticEngine: CHHapticEngine?
     #endif
 
     func update(with snapshot: BreathingSnapshot, at date: Date) {
@@ -31,6 +33,7 @@ final class BreathHapticCoordinator: ObservableObject {
 
         #if os(iOS)
         generator = nil
+        stopCoreHaptics()
         #endif
     }
 
@@ -38,6 +41,7 @@ final class BreathHapticCoordinator: ObservableObject {
         #if os(iOS)
         generator = UIImpactFeedbackGenerator(style: .medium)
         generator?.prepare()
+        _ = ensureCoreHapticsStarted()
         #endif
     }
 
@@ -49,10 +53,75 @@ final class BreathHapticCoordinator: ObservableObject {
 
     private func playPulse(intensity: Double) {
         #if os(iOS)
-        generator?.impactOccurred(intensity: CGFloat(max(0, min(1, intensity))))
+        let clampedIntensity = max(0, min(1, intensity))
+
+        guard !playCorePulse(intensity: clampedIntensity) else {
+            return
+        }
+
+        generator?.impactOccurred(intensity: CGFloat(clampedIntensity))
         generator?.prepare()
         #endif
     }
+
+    #if os(iOS)
+    private func ensureCoreHapticsStarted() -> Bool {
+        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else {
+            return false
+        }
+
+        do {
+            if coreHapticEngine == nil {
+                let engine = try CHHapticEngine()
+                engine.stoppedHandler = { [weak self] _ in
+                    Task { @MainActor in
+                        self?.coreHapticEngine = nil
+                    }
+                }
+                engine.resetHandler = { [weak self] in
+                    Task { @MainActor in
+                        _ = self?.ensureCoreHapticsStarted()
+                    }
+                }
+                coreHapticEngine = engine
+            }
+
+            try coreHapticEngine?.start()
+            return coreHapticEngine != nil
+        } catch {
+            coreHapticEngine = nil
+            return false
+        }
+    }
+
+    private func playCorePulse(intensity: Double) -> Bool {
+        guard ensureCoreHapticsStarted(), let coreHapticEngine else {
+            return false
+        }
+
+        do {
+            let event = CHHapticEvent(
+                eventType: .hapticTransient,
+                parameters: [
+                    CHHapticEventParameter(parameterID: .hapticIntensity, value: Float(intensity)),
+                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.34),
+                ],
+                relativeTime: 0
+            )
+            let pattern = try CHHapticPattern(events: [event], parameters: [])
+            let player = try coreHapticEngine.makePlayer(with: pattern)
+            try player.start(atTime: CHHapticTimeImmediate)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func stopCoreHaptics() {
+        coreHapticEngine?.stop(completionHandler: nil)
+        coreHapticEngine = nil
+    }
+    #endif
 }
 
 enum HapticPulseEvent: Equatable {
@@ -62,11 +131,12 @@ enum HapticPulseEvent: Equatable {
 }
 
 struct HapticPulseScheduler {
-    static let inhaleStartPulseIntensity = 0.72
-    static let minimumPulseIntensity = 0.55
+    static let inhaleStartPulseIntensity = 0.82
+    static let minimumPulseIntensity = 0.62
     static let maximumPulseIntensity = 1.0
 
     private(set) var isInhaling = false
+    private var isHapticSessionActive = false
     private var lastUpdate: Date?
     private var pulseAccumulator = 0.0
 
@@ -80,19 +150,30 @@ struct HapticPulseScheduler {
 
             isInhaling = false
             pulseAccumulator = 0
+
+            guard isHapticSessionActive else {
+                return []
+            }
+
+            isHapticSessionActive = false
             return [.inhaleEnded]
         }
 
         var events: [HapticPulseEvent] = []
+        let hapticsEnabled = snapshot.hapticIntensity > 0
 
         if !isInhaling {
             isInhaling = true
             pulseAccumulator = 0
-            events.append(.inhaleStarted)
-            events.append(.pulse(intensity: Self.inhaleStartPulseIntensity))
+
+            if hapticsEnabled {
+                isHapticSessionActive = true
+                events.append(.inhaleStarted)
+                events.append(.pulse(intensity: Self.inhaleStartPulseIntensity * snapshot.hapticIntensity))
+            }
         }
 
-        guard snapshot.hapticPulsesPerSecond > 0 else {
+        guard hapticsEnabled, snapshot.hapticPulsesPerSecond > 0 else {
             lastUpdate = date
             return events
         }
@@ -108,7 +189,7 @@ struct HapticPulseScheduler {
         pulseAccumulator.formTruncatingRemainder(dividingBy: 1)
         let intensity = Self.minimumPulseIntensity
             + (Self.maximumPulseIntensity - Self.minimumPulseIntensity) * snapshot.hapticRate
-        events.append(.pulse(intensity: intensity))
+        events.append(.pulse(intensity: intensity * snapshot.hapticIntensity))
         return events
     }
 
@@ -116,5 +197,6 @@ struct HapticPulseScheduler {
         lastUpdate = nil
         pulseAccumulator = 0
         isInhaling = false
+        isHapticSessionActive = false
     }
 }

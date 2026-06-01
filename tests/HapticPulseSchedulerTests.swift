@@ -70,4 +70,28 @@ struct HapticPulseSchedulerTests {
 
         #expect(scheduler.isInhaling == false)
     }
+
+    @Test
+    func schedulerDoesNotEmitPulsesWhenHapticsAreDisabled() {
+        let timeline = BreathingTimeline(hapticIntensity: 0)
+        let startDate = Date(timeIntervalSinceReferenceDate: 4_000)
+        var scheduler = HapticPulseScheduler()
+        var pulseCount = 0
+
+        for step in 0...Int(timeline.cycleDuration / 0.024) {
+            let elapsed = Double(step) * 0.024
+            let events = scheduler.update(
+                with: timeline.snapshot(elapsed: elapsed),
+                at: startDate.addingTimeInterval(elapsed)
+            )
+
+            for event in events {
+                if case .pulse = event {
+                    pulseCount += 1
+                }
+            }
+        }
+
+        #expect(pulseCount == 0)
+    }
 }

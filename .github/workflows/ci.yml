@@ -300,16 +300,18 @@ jobs:
           report_dir="app-smoke-report"
           screenshots_dir="$report_dir/screenshots"
           report="$report_dir/index.md"
+          summary="$report_dir/summary.md"
+          results="$report_dir/results.tsv"
 
           mkdir -p "$screenshots_dir"
+          : > "$results"
 
           {
             echo "# App launch smoke report"
             echo
-            echo "Each mode is launched through \`SIMCTL_CHILD_MEDITATION_ANIMATION_MODE\`, then captured with \`xcrun simctl io screenshot\`."
+            echo "Each screen is launched through \`SIMCTL_CHILD_MEDITATION_ANIMATION_MODE\`, then captured with \`xcrun simctl io screenshot\`."
             echo
-            echo "| Screen | Launch result | Screenshot |"
-            echo "|---|---|---|"
+            echo "Inline screenshots render after downloading this artifact and opening this Markdown file beside the \`screenshots/\` directory."
           } > "$report"
 
           capture_mode() {
@@ -322,25 +324,57 @@ jobs:
             if SIMCTL_CHILD_MEDITATION_ANIMATION_MODE="$mode" \
               xcrun simctl launch --terminate-running-process "$simulator_id" "$bundle_id" > "$launch_log" 2>&1; then
               sleep 3
-              xcrun simctl io "$simulator_id" screenshot "$file"
+              if ! xcrun simctl io "$simulator_id" screenshot "$file"; then
+                result="failed"
+              fi
               xcrun simctl terminate "$simulator_id" "$bundle_id" || true
             else
               result="failed"
               cat "$launch_log" >&2 || true
             fi
 
-            printf '| %s | %s | ![%s](screenshots/%s.png) |\n' "$title" "$result" "$title" "$mode" >> "$report"
+            {
+              echo
+              echo "## $title"
+              echo
+              echo "**Launch result:** $result"
+              echo
+
+              if [[ -f "$file" ]]; then
+                printf '![%s](screenshots/%s.png)\n' "$title" "$mode"
+              else
+                echo "Screenshot was not captured."
+              fi
+            } >> "$report"
+
+            printf '%s\t%s\n' "$title" "$result" >> "$results"
 
             if [[ "$result" != "passed" ]]; then
               return 1
             fi
           }
 
-          capture_mode "breathing-horizon" "Breathing horizon"
-          capture_mode "silk-ribbon" "Silk ribbon"
-          capture_mode "ink-bloom" "Ink bloom"
+          overall=0
+          capture_mode "config" "Configuration" || overall=1
+          capture_mode "breathing-horizon" "Breathing horizon" || overall=1
+          capture_mode "silk-ribbon" "Silk ribbon" || overall=1
+          capture_mode "ink-bloom" "Ink bloom" || overall=1
 
-          cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "# App launch smoke report"
+            echo
+            echo "Screenshots are uploaded in the \`app-smoke-report\` artifact."
+            echo
+            echo "GitHub Actions summaries cannot render workspace-relative or artifact-relative image files inline. On master, the release job uploads these screenshots as release assets and embeds those release URLs in the rolling release notes."
+            echo
+
+            while IFS=$'\t' read -r title result; do
+              printf -- '- **%s**: %s\n' "$title" "$result"
+            done < "$results"
+          } > "$summary"
+
+          cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          exit "$overall"
 
       - name: Upload app smoke report
         if: success() || failure()
@@ -374,6 +408,26 @@ jobs:
           name: TestApp-ipa
           path: release-assets
 
+      - name: Download app smoke report artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-smoke-report
+          path: app-smoke-report
+
+      - name: Prepare screenshot release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p release-assets
+
+          if [[ -d app-smoke-report/screenshots ]]; then
+            for screenshot in app-smoke-report/screenshots/*.png; do
+              [[ -e "$screenshot" ]] || continue
+              cp "$screenshot" "release-assets/app-smoke-$(basename "$screenshot")"
+            done
+          fi
+
       - name: Prepare release notes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -392,6 +446,25 @@ jobs:
             echo
             echo "Included artifacts:"
             echo "- TestApp.ipa"
+            echo "- App launch smoke screenshots"
+            echo
+            echo "Screenshots:"
+            echo
+            echo "### Configuration"
+            echo
+            echo "![Configuration]($repo_url/releases/download/release/app-smoke-config.png)"
+            echo
+            echo "### Breathing horizon"
+            echo
+            echo "![Breathing horizon]($repo_url/releases/download/release/app-smoke-breathing-horizon.png)"
+            echo
+            echo "### Silk ribbon"
+            echo
+            echo "![Silk ribbon]($repo_url/releases/download/release/app-smoke-silk-ribbon.png)"
+            echo
+            echo "### Ink bloom"
+            echo
+            echo "![Ink bloom]($repo_url/releases/download/release/app-smoke-ink-bloom.png)"
             echo
             echo "Latest changes:"
             echo
