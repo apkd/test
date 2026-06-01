@@ -188,7 +188,7 @@ struct ContentView: View {
                 return
             }
 
-            withAnimation(.easeOut(duration: 0.45)) {
+            withAnimation(.easeOut(duration: 1.8)) {
                 chromeVisible = false
             }
         }

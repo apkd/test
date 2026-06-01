@@ -38,13 +38,13 @@ enum MeditationRenderer {
             let n1 = pseudoNoise(seed + 11)
             let n2 = pseudoNoise(seed + 23)
             let n3 = pseudoNoise(seed + 41)
-            let baseSpeed = 0.006 + 0.032 * energy
+            let baseSpeed = 0.0012 + 0.0060 * energy
             let phase = CGFloat(time) * baseSpeed * (0.68 + 0.72 * n0) + i * 1.91 + n3 * 2.4
             let counterPhase = CGFloat(time) * baseSpeed * (0.36 + 0.52 * n2) + i * 2.47 + n1 * 1.3
             let horizontalDrift = width * (
                 (0.018 + 0.070 * spread) * sin(phase * 0.52 + i)
                 + (0.012 + 0.030 * energy) * sin(counterPhase + 1.7)
-                + 0.010 * cos(CGFloat(time) * 0.006 + i * 3.4)
+                + 0.010 * cos(CGFloat(time) * 0.0012 + i * 3.4)
             )
             let baseOffset = (i - CGFloat(stringCount - 1) * 0.5) * (height * (0.018 + 0.034 * spread) + 3 * n1)
                 + (n2 - 0.5) * height * 0.042 * spread
@@ -484,7 +484,7 @@ enum MeditationRenderer {
             }
         }
 
-        drawSoftGlowGrain(in: &context, size: size, count: reduceMotion ? 520 : 1_600, alphaScale: reduceMotion ? 1.1 : 1.85)
+        drawSoftGlowGrain(in: &context, size: size, count: reduceMotion ? 700 : 2_400, alphaScale: reduceMotion ? 1.05 : 1.55)
     }
 
     private static func drawSoftGlowGrain(
@@ -497,8 +497,8 @@ enum MeditationRenderer {
             let n0 = pseudoNoise(index * 73 + 17)
             let n1 = pseudoNoise(index * 73 + 31)
             let n2 = pseudoNoise(index * 73 + 59)
-            let radius = 0.28 + 0.92 * n2
-            let alpha = (0.0048 + 0.0115 * Double(pseudoNoise(index * 73 + 83))) * alphaScale
+            let radius = 0.18 + 0.58 * n2
+            let alpha = (0.0040 + 0.0090 * Double(pseudoNoise(index * 73 + 83))) * alphaScale
             let color = index.isMultiple(of: 2)
                 ? Color.white.opacity(alpha)
                 : Color.black.opacity(alpha * 0.65)
@@ -509,31 +509,6 @@ enum MeditationRenderer {
             )
         }
 
-        context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 1.35))
-
-            for index in 0..<(count / 9) {
-                let n0 = pseudoNoise(index * 97 + 5)
-                let n1 = pseudoNoise(index * 97 + 17)
-                let n2 = pseudoNoise(index * 97 + 41)
-                let n3 = pseudoNoise(index * 97 + 67)
-                let radius = 1.8 + 5.4 * n2
-                let alpha = (0.0035 + 0.0060 * Double(n3)) * alphaScale
-                let color = index.isMultiple(of: 2)
-                    ? Color.white.opacity(alpha)
-                    : Color.black.opacity(alpha * 0.72)
-
-                layer.fill(
-                    Path(ellipseIn: CGRect(
-                        x: size.width * n0 - radius,
-                        y: size.height * n1 - radius,
-                        width: radius * (1.5 + 1.2 * n3),
-                        height: radius * (1.4 + 1.1 * n2)
-                    )),
-                    with: .color(color)
-                )
-            }
-        }
     }
 
     private static func drawReflection(
@@ -757,7 +732,7 @@ enum MeditationRenderer {
                 let noise = pseudoNoise(index)
                 let n1 = pseudoNoise(index + 8)
                 let n2 = pseudoNoise(index + 13)
-                let phase = CGFloat(time) * (0.010 + 0.034 * energy + 0.010 * n1) + CGFloat(index) * 1.7
+                let phase = CGFloat(time) * (0.0020 + 0.0065 * energy + 0.0020 * n1) + CGFloat(index) * 1.7
                 let x = width * CGFloat(noise) + width * (0.010 + 0.022 * energy) * sin(phase * 0.7)
                 let y = centerY + sin(phase) * (height * (0.018 + 0.046 * breath))
                 let radius = CGFloat(0.70 + 1.75 * n2) * (0.80 + 0.45 * breath)

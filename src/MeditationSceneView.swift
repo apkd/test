@@ -22,24 +22,6 @@ enum PanelSwipeDirection: Equatable {
             -1
         }
     }
-
-    fileprivate var incomingFadeEdge: SceneFadeEdge {
-        switch self {
-        case .previous:
-            .trailing
-        case .next:
-            .leading
-        }
-    }
-
-    fileprivate var outgoingFadeEdge: SceneFadeEdge {
-        switch self {
-        case .previous:
-            .leading
-        case .next:
-            .trailing
-        }
-    }
 }
 
 struct PanelTransition: Equatable {
@@ -76,12 +58,10 @@ struct MeditationScene: View {
         GeometryReader { geometry in
             TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
                 let snapshot = timeline.snapshot(at: context.date, startedAt: startedAt)
-                let time = context.date.timeIntervalSinceReferenceDate
+                let time = snapshot.elapsed
                 let width = max(1, geometry.size.width)
-                let progress = transition?.progress ?? 0
-                let sign = transition?.direction.sign ?? 0
                 let baseMode = transition?.fromMode ?? mode
-                let parallax = min(width * 0.075, 34)
+                let parallax = min(width * 0.30, 136)
 
                 ZStack {
                     MeditationVisualLayer(
@@ -90,14 +70,6 @@ struct MeditationScene: View {
                         time: time,
                         reduceMotion: reduceMotion
                     )
-                    .offset(x: sign * progress * parallax)
-                    .opacity(1 - Double(progress))
-                    .mask {
-                        SceneEdgeFadeMask(
-                            edge: transition?.direction.outgoingFadeEdge,
-                            strength: transition == nil ? 0 : progress * 0.42
-                        )
-                    }
 
                     if let transition {
                         MeditationVisualLayer(
@@ -107,11 +79,10 @@ struct MeditationScene: View {
                             reduceMotion: reduceMotion
                         )
                         .offset(x: -transition.direction.sign * (1 - transition.progress) * parallax)
-                        .opacity(Double(transition.progress))
                         .mask {
-                            SceneEdgeFadeMask(
-                                edge: transition.direction.incomingFadeEdge,
-                                strength: (1 - transition.progress) * 0.56
+                            SceneRevealMask(
+                                direction: transition.direction,
+                                progress: transition.progress
                             )
                         }
                     }
@@ -122,42 +93,39 @@ struct MeditationScene: View {
     }
 }
 
-private enum SceneFadeEdge: Equatable {
-    case leading
-    case trailing
-}
-
-private struct SceneEdgeFadeMask: View {
-    let edge: SceneFadeEdge?
-    let strength: CGFloat
+private struct SceneRevealMask: View {
+    let direction: PanelSwipeDirection
+    let progress: CGFloat
 
     var body: some View {
-        if let edge, strength > 0.001 {
-            LinearGradient(
-                stops: stops(edge: edge, strength: max(0.06, min(0.62, strength))),
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        } else {
-            Color.white
-        }
+        LinearGradient(
+            stops: stops(progress: max(0, min(1, progress))),
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 
-    private func stops(edge: SceneFadeEdge, strength: CGFloat) -> [Gradient.Stop] {
-        switch edge {
-        case .leading:
-            [
-                .init(color: .clear, location: 0),
-                .init(color: .clear, location: strength * 0.22),
-                .init(color: .white, location: strength),
-                .init(color: .white, location: 1),
+    private func stops(progress: CGFloat) -> [Gradient.Stop] {
+        let fadeWidth: CGFloat = 0.24
+
+        switch direction {
+        case .next:
+            let edge = 1 - progress
+            let fadeStart = max(0, edge - fadeWidth)
+            return [
+                Gradient.Stop(color: .clear, location: 0),
+                Gradient.Stop(color: .clear, location: fadeStart),
+                Gradient.Stop(color: .white, location: edge),
+                Gradient.Stop(color: .white, location: 1),
             ]
-        case .trailing:
-            [
-                .init(color: .white, location: 0),
-                .init(color: .white, location: 1 - strength),
-                .init(color: .clear, location: 1 - strength * 0.22),
-                .init(color: .clear, location: 1),
+        case .previous:
+            let edge = progress
+            let fadeEnd = min(1, edge + fadeWidth)
+            return [
+                Gradient.Stop(color: .white, location: 0),
+                Gradient.Stop(color: .white, location: edge),
+                Gradient.Stop(color: .clear, location: fadeEnd),
+                Gradient.Stop(color: .clear, location: 1),
             ]
         }
     }
