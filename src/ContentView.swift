@@ -17,6 +17,7 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             MeditationScene(mode: mode, startedAt: startedAt, timeline: timeline, reduceMotion: reduceMotion)
+                .ignoresSafeArea()
 
             VStack {
                 topLabel
@@ -37,7 +38,6 @@ struct ContentView: View {
             .padding(.top, 18)
             .padding(.bottom, 24)
         }
-        .ignoresSafeArea()
         .contentShape(Rectangle())
         .gesture(swipeGesture)
         .onAppear {
