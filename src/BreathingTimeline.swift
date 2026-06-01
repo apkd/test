@@ -241,8 +241,8 @@ struct BreathingSnapshot: Equatable {
 
 struct BreathingTimeline {
     static let initialElapsedOffset: TimeInterval = 0.35
-    static let peakCurveExponent = 1.8
-    static let earlyCurveExponent = 2.2
+    static let peakCurveExponent = 3.5
+    static let earlyCurveExponent = 3.5
 
     var breathsPerMinute: Double = 7
     var peakHapticPulsesPerSecond: Double = 40.0
@@ -299,18 +299,25 @@ struct BreathingTimeline {
         return clamped * clamped * (3 - 2 * clamped)
     }
 
+    static func smootherstep(_ value: Double) -> Double {
+        let clamped = max(0, min(1, value))
+        return clamped * clamped * clamped * (clamped * (clamped * 6 - 15) + 10)
+    }
+
     private func processedHapticRate(_ rate: Double) -> Double {
         let clampedRate = max(0, min(1, rate))
         let smoothBlend = max(0, min(1, hapticCurveSmoothBlend))
         let peakBlend = max(0, min(1, hapticCurvePeakBlend))
         let earlyBlend = max(0, min(1, hapticCurveEarlyBlend))
-        let smoothRate = Self.smoothstep(clampedRate)
+        let smoothRate = Self.smootherstep(clampedRate)
         let peakRate = pow(clampedRate, Self.peakCurveExponent)
         let earlyRate = 1 - pow(1 - clampedRate, Self.earlyCurveExponent)
-        let totalWeight = 1 + smoothBlend + peakBlend + earlyBlend
+        let totalBlend = smoothBlend + peakBlend + earlyBlend
+        let baseWeight = max(0, 1 - totalBlend)
+        let totalWeight = baseWeight + totalBlend
 
         return (
-            clampedRate
+            baseWeight * clampedRate
             + smoothBlend * smoothRate
             + peakBlend * peakRate
             + earlyBlend * earlyRate

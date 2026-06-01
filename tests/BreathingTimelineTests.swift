@@ -90,18 +90,27 @@ struct BreathingTimelineTests {
             hapticCurvePeakBlend: 1,
             hapticCurveEarlyBlend: 1
         )
-        let elapsed = timeline.cycleDuration / 12
-        let baseRate = sin(Double.pi / 6)
+        let elapsed = timeline.cycleDuration / 16
+        let baseRate = sin(Double.pi / 4)
         let expectedRate = (
-            baseRate
-            + BreathingTimeline.smoothstep(baseRate)
+            BreathingTimeline.smootherstep(baseRate)
             + pow(baseRate, BreathingTimeline.peakCurveExponent)
             + 1 - pow(1 - baseRate, BreathingTimeline.earlyCurveExponent)
-        ) / 4
+        ) / 3
         let snapshot = timeline.snapshot(elapsed: elapsed)
 
         #expect(abs(snapshot.hapticRate - expectedRate) < 0.000_001)
         #expect(abs(snapshot.hapticPulsesPerSecond - 40 * 0.5 * expectedRate) < 0.000_001)
+    }
+
+    @Test
+    func fullCurveSliderCanReplaceBaseRate() {
+        let timeline = BreathingTimeline(hapticCurvePeakBlend: 1)
+        let elapsed = timeline.cycleDuration / 16
+        let baseRate = sin(Double.pi / 4)
+        let snapshot = timeline.snapshot(elapsed: elapsed)
+
+        #expect(abs(snapshot.hapticRate - pow(baseRate, BreathingTimeline.peakCurveExponent)) < 0.000_001)
     }
 
     @Test
