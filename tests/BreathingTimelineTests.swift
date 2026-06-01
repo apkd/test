@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import TestApp
 
@@ -83,8 +84,36 @@ struct BreathingTimelineTests {
     }
 
     @Test
+    func hapticCurveSlidersBlendBaseAndProcessedRates() {
+        let timeline = BreathingTimeline(
+            hapticCurveSmoothBlend: 1,
+            hapticCurvePeakBlend: 1,
+            hapticCurveEarlyBlend: 1
+        )
+        let elapsed = timeline.cycleDuration / 12
+        let baseRate = sin(Double.pi / 6)
+        let expectedRate = (
+            baseRate
+            + BreathingTimeline.smoothstep(baseRate)
+            + pow(baseRate, BreathingTimeline.peakCurveExponent)
+            + 1 - pow(1 - baseRate, BreathingTimeline.earlyCurveExponent)
+        ) / 4
+        let snapshot = timeline.snapshot(elapsed: elapsed)
+
+        #expect(abs(snapshot.hapticRate - expectedRate) < 0.000_001)
+        #expect(abs(snapshot.hapticPulsesPerSecond - 40 * 0.5 * expectedRate) < 0.000_001)
+    }
+
+    @Test
     func meditationSettingsBuildsConfiguredTimeline() {
-        let settings = MeditationSettings(breathsPerMinute: 9.5, hapticIntensity: 0.4, hapticFrequency: 0.25)
+        let settings = MeditationSettings(
+            breathsPerMinute: 9.5,
+            hapticIntensity: 0.4,
+            hapticFrequency: 0.25,
+            hapticCurveSmoothBlend: 0.2,
+            hapticCurvePeakBlend: 0.3,
+            hapticCurveEarlyBlend: 0.4
+        )
         let timeline = settings.timeline
         let inhalePeak = timeline.snapshot(elapsed: timeline.cycleDuration * 0.25)
 
@@ -92,6 +121,9 @@ struct BreathingTimelineTests {
         #expect(abs(inhalePeak.hapticIntensity - 0.4) < 0.000_001)
         #expect(abs(inhalePeak.hapticIntensityScale - 0.8) < 0.000_001)
         #expect(abs(inhalePeak.hapticPulsesPerSecond - 10) < 0.000_001)
+        #expect(timeline.hapticCurveSmoothBlend == 0.2)
+        #expect(timeline.hapticCurvePeakBlend == 0.3)
+        #expect(timeline.hapticCurveEarlyBlend == 0.4)
     }
 
     @Test
@@ -178,5 +210,8 @@ struct BreathingTimelineTests {
         #expect(MeditationPersistenceKey.breathsPerMinute == "meditation.breathsPerMinute")
         #expect(MeditationPersistenceKey.hapticIntensity == "meditation.hapticIntensity")
         #expect(MeditationPersistenceKey.hapticFrequency == "meditation.hapticFrequency")
+        #expect(MeditationPersistenceKey.hapticCurveSmoothBlend == "meditation.hapticCurve.smoothBlend")
+        #expect(MeditationPersistenceKey.hapticCurvePeakBlend == "meditation.hapticCurve.peakBlend")
+        #expect(MeditationPersistenceKey.hapticCurveEarlyBlend == "meditation.hapticCurve.earlyBlend")
     }
 }

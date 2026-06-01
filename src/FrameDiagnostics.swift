@@ -6,53 +6,19 @@ import Darwin
 #endif
 
 struct FrameDiagnosticsSnapshot: Equatable {
-    var framesPerSecond = 0.0
-    var frameMilliseconds = 0.0
     var cpuUsagePercent: Double?
     var thermalState = ProcessInfo.ThermalState.nominal
-    var isLowPowerModeEnabled = ProcessInfo.processInfo.isLowPowerModeEnabled
-    var targetFramesPerSecond = 30.0
 }
 
 @MainActor
 final class FrameDiagnosticsSampler: ObservableObject {
     @Published private(set) var snapshot = FrameDiagnosticsSnapshot()
 
-    private var lastFrameDate: Date?
-    private var lastPublishDate: Date?
-    private var frameCount = 0
-    private var frameMillisecondsTotal = 0.0
-
-    func recordFrame(at date: Date) {
-        defer {
-            lastFrameDate = date
-        }
-
-        guard let lastFrameDate else {
-            lastPublishDate = date
-            return
-        }
-
-        let frameMilliseconds = max(0, date.timeIntervalSince(lastFrameDate) * 1_000)
-        frameCount += 1
-        frameMillisecondsTotal += frameMilliseconds
-
-        let publishElapsed = date.timeIntervalSince(lastPublishDate ?? date)
-        guard publishElapsed >= 0.75, frameCount > 0 else {
-            return
-        }
-
+    func refresh() {
         snapshot = FrameDiagnosticsSnapshot(
-            framesPerSecond: Double(frameCount) / publishElapsed,
-            frameMilliseconds: frameMillisecondsTotal / Double(frameCount),
             cpuUsagePercent: ProcessDiagnostics.cpuUsagePercent(),
-            thermalState: ProcessInfo.processInfo.thermalState,
-            isLowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
-            targetFramesPerSecond: 30
+            thermalState: ProcessInfo.processInfo.thermalState
         )
-        frameCount = 0
-        frameMillisecondsTotal = 0
-        lastPublishDate = date
     }
 }
 

@@ -11,6 +11,9 @@ struct ContentView: View {
     @AppStorage(MeditationPersistenceKey.breathsPerMinute) private var breathsPerMinute = MeditationSettings.defaultBreathsPerMinute
     @AppStorage(MeditationPersistenceKey.hapticIntensity) private var hapticIntensity = MeditationSettings.defaultHapticIntensity
     @AppStorage(MeditationPersistenceKey.hapticFrequency) private var hapticFrequency = MeditationSettings.defaultHapticFrequency
+    @AppStorage(MeditationPersistenceKey.hapticCurveSmoothBlend) private var hapticCurveSmoothBlend = MeditationSettings.defaultHapticCurveSmoothBlend
+    @AppStorage(MeditationPersistenceKey.hapticCurvePeakBlend) private var hapticCurvePeakBlend = MeditationSettings.defaultHapticCurvePeakBlend
+    @AppStorage(MeditationPersistenceKey.hapticCurveEarlyBlend) private var hapticCurveEarlyBlend = MeditationSettings.defaultHapticCurveEarlyBlend
 
     @State private var startedAt = Date()
     @State private var chromeVisible = true
@@ -34,7 +37,10 @@ struct ContentView: View {
         MeditationSettings(
             breathsPerMinute: clamped(breathsPerMinute, to: MeditationSettings.breathsPerMinuteRange),
             hapticIntensity: clamped(hapticIntensity, to: MeditationSettings.hapticIntensityRange),
-            hapticFrequency: clamped(hapticFrequency, to: MeditationSettings.hapticFrequencyRange)
+            hapticFrequency: clamped(hapticFrequency, to: MeditationSettings.hapticFrequencyRange),
+            hapticCurveSmoothBlend: clamped(hapticCurveSmoothBlend, to: MeditationSettings.hapticCurveBlendRange),
+            hapticCurvePeakBlend: clamped(hapticCurvePeakBlend, to: MeditationSettings.hapticCurveBlendRange),
+            hapticCurveEarlyBlend: clamped(hapticCurveEarlyBlend, to: MeditationSettings.hapticCurveBlendRange)
         )
     }
 
@@ -54,8 +60,7 @@ struct ContentView: View {
                 mode: activeMode,
                 startedAt: startedAt,
                 timeline: timeline,
-                reduceMotion: reduceMotion,
-                diagnostics: diagnostics
+                reduceMotion: reduceMotion
             )
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
@@ -80,7 +85,10 @@ struct ContentView: View {
                     ConfigurationPanel(
                         breathsPerMinute: $breathsPerMinute,
                         hapticIntensity: $hapticIntensity,
-                        hapticFrequency: $hapticFrequency
+                        hapticFrequency: $hapticFrequency,
+                        hapticCurveSmoothBlend: $hapticCurveSmoothBlend,
+                        hapticCurvePeakBlend: $hapticCurvePeakBlend,
+                        hapticCurveEarlyBlend: $hapticCurveEarlyBlend
                     )
                         .padding(.bottom, 16)
                 } else {
@@ -122,9 +130,11 @@ struct ContentView: View {
             haptics.startLoopingPattern(for: settings.timeline, elapsed: Date().timeIntervalSince(startedAt))
             await runHapticsLoop(startedAt: startedAt, settings: settings)
         }
-        .onChange(of: settings) { _, newSettings in
-            let elapsed = Date().timeIntervalSince(startedAt)
-            haptics.startLoopingPattern(for: newSettings.timeline, elapsed: elapsed)
+        .task {
+            await runDiagnosticsLoop()
+        }
+        .onChange(of: settings) { oldSettings, newSettings in
+            preserveBreathPhaseIfNeeded(from: oldSettings, to: newSettings)
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else {
@@ -185,8 +195,13 @@ struct ContentView: View {
             haptics.update(with: timeline.snapshot(at: date, startedAt: startedAt), at: date)
             try? await Task.sleep(nanoseconds: 24_000_000)
         }
+    }
 
-        haptics.stop()
+    private func runDiagnosticsLoop() async {
+        while !Task.isCancelled {
+            diagnostics.refresh()
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
     }
 
     private func setPanel(_ newPanel: MeditationPanel, reveal: Bool = true) {
@@ -216,6 +231,22 @@ struct ContentView: View {
         }
     }
 
+    private func preserveBreathPhaseIfNeeded(from oldSettings: MeditationSettings, to newSettings: MeditationSettings) {
+        guard oldSettings.breathsPerMinute != newSettings.breathsPerMinute else {
+            return
+        }
+
+        let now = Date()
+        let oldElapsed = max(0, now.timeIntervalSince(startedAt))
+        let oldCycleDuration = oldSettings.timeline.cycleDuration
+        let newCycleDuration = newSettings.timeline.cycleDuration
+        let completedCycles = floor(oldElapsed / oldCycleDuration)
+        let cycleProgress = (oldElapsed / oldCycleDuration).truncatingRemainder(dividingBy: 1)
+        let adjustedElapsed = (completedCycles + cycleProgress) * newCycleDuration
+
+        startedAt = now.addingTimeInterval(-adjustedElapsed)
+    }
+
     private func clamped(_ value: Double, to range: ClosedRange<Double>) -> Double {
         min(max(value, range.lowerBound), range.upperBound)
     }
@@ -232,16 +263,11 @@ private struct MeditationScene: View {
     let startedAt: Date
     let timeline: BreathingTimeline
     let reduceMotion: Bool
-    @ObservedObject var diagnostics: FrameDiagnosticsSampler
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
             let snapshot = timeline.snapshot(at: context.date, startedAt: startedAt)
             let time = context.date.timeIntervalSinceReferenceDate
-
-            let _ = Task { @MainActor in
-                diagnostics.recordFrame(at: context.date)
-            }
 
             ZStack {
                 AmbientBackground(mode: mode, snapshot: snapshot, reduceMotion: reduceMotion)
@@ -259,40 +285,35 @@ private struct DiagnosticsOverlay: View {
     let snapshot: FrameDiagnosticsSnapshot
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(String(format: "FPS %.1f / %.0f", snapshot.framesPerSecond, snapshot.targetFramesPerSecond))
-            Text(String(format: "Frame %.1f ms", snapshot.frameMilliseconds))
-
-            if let cpuUsagePercent = snapshot.cpuUsagePercent {
-                Text(String(format: "CPU %.0f%%", cpuUsagePercent))
-            } else {
-                Text("CPU n/a")
-            }
-
-            Text("Thermal \(snapshot.thermalState.diagnosticTitle)")
-            Text(snapshot.isLowPowerModeEnabled ? "Low power on" : "Low power off")
-        }
+        Text(text)
         .font(.system(size: 10, weight: .semibold, design: .monospaced))
-        .foregroundStyle(.white.opacity(0.76))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 7)
-        .background(.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .foregroundStyle(.white.opacity(0.25))
+    }
+
+    private var text: String {
+        let cpuText = snapshot.cpuUsagePercent.map { String(format: "CPU %.0f%%", $0) } ?? "CPU n/a"
+
+        guard let thermalText = snapshot.thermalState.diagnosticTitle else {
+            return cpuText
+        }
+
+        return "\(cpuText) (\(thermalText))"
     }
 }
 
 private extension ProcessInfo.ThermalState {
-    var diagnosticTitle: String {
+    var diagnosticTitle: String? {
         switch self {
         case .nominal:
-            "nominal"
+            nil
         case .fair:
-            "fair"
+            "WARM"
         case .serious:
-            "serious"
+            "HOT"
         case .critical:
-            "critical"
+            "CRIT"
         @unknown default:
-            "unknown"
+            nil
         }
     }
 }
@@ -304,10 +325,11 @@ private struct AmbientBackground: View {
 
     var body: some View {
         let breathScale = reduceMotion ? 0.04 : 0.15
+        let breathAmount = CGFloat(snapshot.breathAmount)
 
         ZStack {
             LinearGradient(
-                colors: baseColors,
+                colors: baseColors(breathAmount: breathAmount),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -327,27 +349,44 @@ private struct AmbientBackground: View {
         }
     }
 
-    private var baseColors: [Color] {
+    private func baseColors(breathAmount: CGFloat) -> [Color] {
         switch mode {
         case .silkRibbon:
-            [
-                Color(red: 0.035, green: 0.045, blue: 0.09),
-                Color(red: 0.08, green: 0.13, blue: 0.24),
-                Color(red: 0.02, green: 0.025, blue: 0.055),
+            let warmth = Double(BreathingTimeline.smoothstep(Double(breathAmount))) * 0.58
+            return [
+                Self.color(red: 0.035, green: 0.045, blue: 0.09, warmRed: 0.11, warmGreen: 0.060, warmBlue: 0.085, amount: warmth),
+                Self.color(red: 0.08, green: 0.13, blue: 0.24, warmRed: 0.24, warmGreen: 0.145, warmBlue: 0.21, amount: warmth),
+                Self.color(red: 0.02, green: 0.025, blue: 0.055, warmRed: 0.075, warmGreen: 0.040, warmBlue: 0.065, amount: warmth),
             ]
         case .breathingHorizon:
-            [
+            return [
                 Color(red: 0.08, green: 0.10, blue: 0.18),
                 Color(red: 0.20, green: 0.20, blue: 0.34),
                 Color(red: 0.04, green: 0.07, blue: 0.12),
             ]
         case .inkBloom:
-            [
+            return [
                 Color(red: 0.025, green: 0.02, blue: 0.06),
                 Color(red: 0.09, green: 0.055, blue: 0.16),
                 Color(red: 0.015, green: 0.015, blue: 0.04),
             ]
         }
+    }
+
+    private static func color(
+        red: Double,
+        green: Double,
+        blue: Double,
+        warmRed: Double,
+        warmGreen: Double,
+        warmBlue: Double,
+        amount: Double
+    ) -> Color {
+        Color(
+            red: red + (warmRed - red) * amount,
+            green: green + (warmGreen - green) * amount,
+            blue: blue + (warmBlue - blue) * amount
+        )
     }
 }
 
@@ -358,7 +397,7 @@ private struct MeditationArtwork: View {
     let reduceMotion: Bool
 
     var body: some View {
-        Canvas { context, size in
+        Canvas(opaque: false, rendersAsynchronously: true) { context, size in
             switch mode {
             case .silkRibbon:
                 MeditationRenderer.drawSilkRibbon(in: &context, size: size, snapshot: snapshot, time: time, reduceMotion: reduceMotion)
@@ -368,7 +407,6 @@ private struct MeditationArtwork: View {
                 MeditationRenderer.drawInkBloom(in: &context, size: size, snapshot: snapshot, time: time, reduceMotion: reduceMotion)
             }
         }
-        .drawingGroup()
     }
 }
 
@@ -376,48 +414,82 @@ private struct ConfigurationPanel: View {
     @Binding var breathsPerMinute: Double
     @Binding var hapticIntensity: Double
     @Binding var hapticFrequency: Double
+    @Binding var hapticCurveSmoothBlend: Double
+    @Binding var hapticCurvePeakBlend: Double
+    @Binding var hapticCurveEarlyBlend: Double
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            VStack(alignment: .leading, spacing: 7) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 16) {
                 Label("Configuration", systemImage: "slider.horizontal.3")
                     .font(.system(.title3, design: .rounded, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.94))
+
+                ConfigurationSlider(
+                    title: "Breathing speed",
+                    valueText: String(format: "%.1f bpm", breathsPerMinute),
+                    systemImage: "wind",
+                    value: $breathsPerMinute,
+                    range: MeditationSettings.breathsPerMinuteRange,
+                    step: 0.5,
+                    accent: Color(red: 1.0, green: 0.74, blue: 0.49)
+                )
+
+                ConfigurationSlider(
+                    title: "Haptics intensity",
+                    valueText: "\(Int((hapticIntensity * 100).rounded()))%",
+                    systemImage: "waveform.path",
+                    value: $hapticIntensity,
+                    range: MeditationSettings.hapticIntensityRange,
+                    step: 0.05,
+                    accent: Color(red: 0.72, green: 0.56, blue: 1.0)
+                )
+
+                ConfigurationSlider(
+                    title: "Haptics frequency",
+                    valueText: "\(Int((hapticFrequency * 100).rounded()))%",
+                    systemImage: "dot.radiowaves.left.and.right",
+                    value: $hapticFrequency,
+                    range: MeditationSettings.hapticFrequencyRange,
+                    step: 0.05,
+                    accent: Color(red: 0.56, green: 0.86, blue: 1.0)
+                )
+
+                ConfigurationSlider(
+                    title: "Smooth curve",
+                    valueText: "\(Int((hapticCurveSmoothBlend * 100).rounded()))%",
+                    systemImage: "scribble.variable",
+                    value: $hapticCurveSmoothBlend,
+                    range: MeditationSettings.hapticCurveBlendRange,
+                    step: 0.05,
+                    accent: Color(red: 0.80, green: 0.92, blue: 1.0)
+                )
+
+                ConfigurationSlider(
+                    title: "Peak curve",
+                    valueText: "\(Int((hapticCurvePeakBlend * 100).rounded()))%",
+                    systemImage: "point.topleft.down.curvedto.point.bottomright.up",
+                    value: $hapticCurvePeakBlend,
+                    range: MeditationSettings.hapticCurveBlendRange,
+                    step: 0.05,
+                    accent: Color(red: 0.84, green: 0.66, blue: 1.0)
+                )
+
+                ConfigurationSlider(
+                    title: "Early curve",
+                    valueText: "\(Int((hapticCurveEarlyBlend * 100).rounded()))%",
+                    systemImage: "point.bottomleft.forward.to.point.topright.scurvepath",
+                    value: $hapticCurveEarlyBlend,
+                    range: MeditationSettings.hapticCurveBlendRange,
+                    step: 0.05,
+                    accent: Color(red: 1.0, green: 0.68, blue: 0.58)
+                )
             }
-
-            ConfigurationSlider(
-                title: "Breathing speed",
-                valueText: String(format: "%.1f bpm", breathsPerMinute),
-                systemImage: "wind",
-                value: $breathsPerMinute,
-                range: MeditationSettings.breathsPerMinuteRange,
-                step: 0.5,
-                accent: Color(red: 1.0, green: 0.74, blue: 0.49)
-            )
-
-            ConfigurationSlider(
-                title: "Haptics intensity",
-                valueText: "\(Int((hapticIntensity * 100).rounded()))%",
-                systemImage: "waveform.path",
-                value: $hapticIntensity,
-                range: MeditationSettings.hapticIntensityRange,
-                step: 0.05,
-                accent: Color(red: 0.72, green: 0.56, blue: 1.0)
-            )
-
-            ConfigurationSlider(
-                title: "Haptics frequency",
-                valueText: "\(Int((hapticFrequency * 100).rounded()))%",
-                systemImage: "dot.radiowaves.left.and.right",
-                value: $hapticFrequency,
-                range: MeditationSettings.hapticFrequencyRange,
-                step: 0.05,
-                accent: Color(red: 0.56, green: 0.86, blue: 1.0)
-            )
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 24)
         .frame(maxWidth: 380, alignment: .leading)
+        .frame(maxHeight: 620)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 32, style: .continuous)
