@@ -444,7 +444,7 @@ private struct MeditationScene: View {
                         reduceMotion: reduceMotion
                     )
                     .offset(x: sign * progress * width)
-                    .opacity(1 - 0.34 * progress)
+                    .opacity(1 - 0.34 * Double(progress))
 
                     if let transition {
                         MeditationVisualLayer(
@@ -454,7 +454,7 @@ private struct MeditationScene: View {
                             reduceMotion: reduceMotion
                         )
                         .offset(x: -transition.direction.sign * (1 - transition.progress) * width)
-                        .opacity(0.26 + 0.74 * transition.progress)
+                        .opacity(0.26 + 0.74 * Double(transition.progress))
                     }
                 }
                 .clipped()
