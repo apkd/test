@@ -200,9 +200,8 @@ struct MeditationSettings: Equatable {
     static let breathsPerMinuteRange: ClosedRange<Double> = 4...12
     static let hapticIntensityRange: ClosedRange<Double> = 0...1
     static let hapticFrequencyRange: ClosedRange<Double> = 0...1
-    static let hapticCurveTimingRange: ClosedRange<Double> = -0.90...0.55
+    static let hapticCurveTimingRange: ClosedRange<Double> = -1...1
     static let defaultHapticCurveTiming = -0.45
-    static let defaultHapticCurveTimingPosition = (defaultHapticCurveTiming - hapticCurveTimingRange.lowerBound) / (hapticCurveTimingRange.upperBound - hapticCurveTimingRange.lowerBound)
 
     var breathsPerMinute: Double = defaultBreathsPerMinute
     var hapticIntensity: Double = defaultHapticIntensity
@@ -252,7 +251,7 @@ struct BreathingSnapshot: Equatable {
 
 struct BreathingTimeline {
     static let initialElapsedOffset: TimeInterval = 0.35
-    static let hapticCurveMaximumShift = 0.32
+    static let hapticCurveRetimingStrength = 2.2
 
     var breathsPerMinute: Double = 7
     var peakHapticPulsesPerSecond: Double = 40.0
@@ -324,15 +323,34 @@ struct BreathingTimeline {
             MeditationSettings.hapticCurveTimingRange.lowerBound,
             min(MeditationSettings.hapticCurveTimingRange.upperBound, timing)
         )
-        let timingMagnitude = clampedTiming < 0
-            ? abs(clampedTiming / MeditationSettings.hapticCurveTimingRange.lowerBound)
-            : clampedTiming / MeditationSettings.hapticCurveTimingRange.upperBound
-        let center = 0.5 + hapticCurveMaximumShift * clampedTiming
-        let width = 0.50 - 0.18 * timingMagnitude
-        let normalizedDistance = (phase - center) / width
-        let shiftedPeak = exp(-1.8 * normalizedDistance * normalizedDistance)
-        let shapedBlend = min(1, timingMagnitude)
 
-        return min(1, max(0, base * (1 - shapedBlend) + shiftedPeak * shapedBlend))
+        guard abs(clampedTiming) > 0.000_001 else {
+            return base
+        }
+
+        let retimedPhase = retimedHapticPhase(phase, timing: clampedTiming)
+
+        return min(1, max(0, sin(Double.pi * retimedPhase)))
+    }
+
+    static func retimedHapticPhase(_ phaseProgress: Double, timing: Double) -> Double {
+        let phase = max(0, min(1, phaseProgress))
+        let clampedTiming = max(
+            MeditationSettings.hapticCurveTimingRange.lowerBound,
+            min(MeditationSettings.hapticCurveTimingRange.upperBound, timing)
+        )
+        let strength = clampedTiming * hapticCurveRetimingStrength
+
+        guard abs(strength) > 0.000_001 else {
+            return phase
+        }
+
+        let denominator = exp(strength) - 1
+
+        guard abs(denominator) > 0.000_001 else {
+            return phase
+        }
+
+        return (exp(strength * phase) - 1) / denominator
     }
 }

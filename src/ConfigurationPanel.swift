@@ -49,7 +49,9 @@ struct ConfigurationPanel: View {
                 value: $hapticCurveTiming,
                 range: MeditationSettings.hapticCurveTimingRange,
                 step: 0.05,
-                accent: Color(red: 0.80, green: 0.92, blue: 1.0)
+                accent: Color(red: 0.80, green: 0.92, blue: 1.0),
+                minimumLabel: "Early −100",
+                maximumLabel: "+100 Late"
             )
         }
         .padding(.horizontal, 22)
@@ -65,13 +67,13 @@ struct ConfigurationPanel: View {
     }
 
     private var timingText: String {
-        let percent = Int((abs(hapticCurveTiming) * 100).rounded())
+        let percent = Int((hapticCurveTiming * 100).rounded())
 
         if percent == 0 {
-            return "Centered"
+            return "0"
         }
 
-        return hapticCurveTiming < 0 ? "Early \(percent)%" : "Late \(percent)%"
+        return String(format: "%+d", percent)
     }
 }
 
@@ -104,6 +106,8 @@ private struct ConfigurationSlider: View {
     let range: ClosedRange<Double>
     let step: Double
     let accent: Color
+    var minimumLabel: String? = nil
+    var maximumLabel: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -131,6 +135,20 @@ private struct ConfigurationSlider: View {
 
             Slider(value: $value, in: range, step: step)
                 .tint(accent)
+
+            if minimumLabel != nil || maximumLabel != nil {
+                HStack {
+                    Text(minimumLabel ?? "")
+
+                    Spacer()
+
+                    Text(maximumLabel ?? "")
+                }
+                .font(.system(.caption2, design: .rounded, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.48))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

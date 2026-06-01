@@ -95,11 +95,47 @@ struct BreathingTimelineTests {
     }
 
     @Test
-    func hapticTimingDefaultIsRemappedIntoAsymmetricRange() {
-        #expect(abs(MeditationSettings.hapticCurveTimingRange.lowerBound + 0.90) < 0.000_001)
-        #expect(abs(MeditationSettings.hapticCurveTimingRange.upperBound - 0.55) < 0.000_001)
+    func hapticTimingCurveRetimesWithinSamePulseWindow() {
+        let neutralStart = BreathingTimeline.shapedHapticRate(phaseProgress: 0, baseRate: 0, timing: 0)
+        let neutralEnd = BreathingTimeline.shapedHapticRate(phaseProgress: 1, baseRate: 0, timing: 0)
+        let earlyStart = BreathingTimeline.shapedHapticRate(phaseProgress: 0, baseRate: 0, timing: -1)
+        let earlyEnd = BreathingTimeline.shapedHapticRate(phaseProgress: 1, baseRate: 0, timing: -1)
+        let lateStart = BreathingTimeline.shapedHapticRate(phaseProgress: 0, baseRate: 0, timing: 1)
+        let lateEnd = BreathingTimeline.shapedHapticRate(phaseProgress: 1, baseRate: 0, timing: 1)
+
+        #expect(abs(neutralStart) < 0.000_001)
+        #expect(abs(neutralEnd) < 0.000_001)
+        #expect(abs(earlyStart) < 0.000_001)
+        #expect(abs(earlyEnd) < 0.000_001)
+        #expect(abs(lateStart) < 0.000_001)
+        #expect(abs(lateEnd) < 0.000_001)
+        #expect(abs(BreathingTimeline.retimedHapticPhase(0, timing: 1)) < 0.000_001)
+        #expect(abs(BreathingTimeline.retimedHapticPhase(1, timing: 1) - 1) < 0.000_001)
+    }
+
+    @Test
+    func hapticTimingZeroKeepsBaseSineAndBiasesSmoothly() {
+        let neutralEarly = BreathingTimeline.shapedHapticRate(phaseProgress: 0.25, baseRate: sin(.pi * 0.25), timing: 0)
+        let neutralLate = BreathingTimeline.shapedHapticRate(phaseProgress: 0.75, baseRate: sin(.pi * 0.75), timing: 0)
+        let earlyBiasEarly = BreathingTimeline.shapedHapticRate(phaseProgress: 0.25, baseRate: sin(.pi * 0.25), timing: -1)
+        let earlyBiasLate = BreathingTimeline.shapedHapticRate(phaseProgress: 0.75, baseRate: sin(.pi * 0.75), timing: -1)
+        let lateBiasEarly = BreathingTimeline.shapedHapticRate(phaseProgress: 0.25, baseRate: sin(.pi * 0.25), timing: 1)
+        let lateBiasLate = BreathingTimeline.shapedHapticRate(phaseProgress: 0.75, baseRate: sin(.pi * 0.75), timing: 1)
+
+        #expect(abs(neutralEarly - sin(.pi * 0.25)) < 0.000_001)
+        #expect(abs(neutralLate - sin(.pi * 0.75)) < 0.000_001)
+        #expect(abs(neutralEarly - neutralLate) < 0.000_001)
+        #expect(earlyBiasEarly > neutralEarly)
+        #expect(earlyBiasLate < neutralLate)
+        #expect(lateBiasEarly < neutralEarly)
+        #expect(lateBiasLate > neutralLate)
+    }
+
+    @Test
+    func hapticTimingRangeIsSymmetricForUi() {
+        #expect(abs(MeditationSettings.hapticCurveTimingRange.lowerBound + 1.0) < 0.000_001)
+        #expect(abs(MeditationSettings.hapticCurveTimingRange.upperBound - 1.0) < 0.000_001)
         #expect(abs(MeditationSettings.defaultHapticCurveTiming + 0.45) < 0.000_001)
-        #expect(abs(MeditationSettings.defaultHapticCurveTimingPosition - 45.0 / 145.0) < 0.000_001)
     }
 
     @Test
