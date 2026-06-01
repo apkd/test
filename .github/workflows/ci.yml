@@ -200,7 +200,7 @@ jobs:
       - name: Install xtool
         run: brew install xtool-org/tap/xtool
 
-      - name: Select simulator
+      - name: Select and start simulator
         id: simulator
         shell: bash
         run: |
@@ -240,6 +240,7 @@ jobs:
           fi
 
           echo "simulator_id=$simulator_id" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$simulator_id" || true
 
       - name: Build simulator app
         shell: bash
@@ -261,7 +262,7 @@ jobs:
 
           xtool dev build --configuration debug --triple "$triple"
 
-      - name: Install and launch app
+      - name: Install simulator app
         shell: bash
         run: |
           set -euo pipefail
@@ -285,9 +286,6 @@ jobs:
           xcrun simctl bootstatus "$simulator_id" -b
           xcrun simctl install "$simulator_id" "$app"
           xcrun simctl get_app_container "$simulator_id" "$bundle_id"
-          xcrun simctl launch "$simulator_id" "$bundle_id"
-          sleep 3
-          xcrun simctl terminate "$simulator_id" "$bundle_id" || true
 
       - name: Capture app screen report
         if: success() || failure()
@@ -300,46 +298,89 @@ jobs:
           screenshots_dir="app-smoke-screenshots"
           logs_dir="$RUNNER_TEMP/app-smoke-logs"
           results="$RUNNER_TEMP/app-smoke-results.tsv"
+          initial_delay_seconds="1"
+          transition_delay_seconds="0.75"
 
           rm -rf "$screenshots_dir"
           mkdir -p "$screenshots_dir"
           mkdir -p "$logs_dir"
           : > "$results"
 
-          capture_mode() {
+          write_result() {
+            printf '%s\t%s\n' "$1" "$2" >> "$results"
+          }
+
+          capture_screenshot() {
+            local file="$1"
+
+            for attempt in 1 2 3; do
+              if xcrun simctl io "$simulator_id" screenshot "$file"; then
+                return 0
+              fi
+
+              sleep 0.5
+            done
+
+            return 1
+          }
+
+          capture_current_mode() {
             local mode="$1"
             local title="$2"
             local file="$screenshots_dir/$mode.png"
-            local launch_log="$logs_dir/$mode-launch.txt"
             local result="passed"
 
-            if SIMCTL_CHILD_MEDITATION_ANIMATION_MODE="$mode" \
-              xcrun simctl launch --terminate-running-process "$simulator_id" "$bundle_id" > "$launch_log" 2>&1; then
-              sleep 3
-              if ! xcrun simctl io "$simulator_id" screenshot "$file"; then
-                result="failed"
-              fi
-              xcrun simctl terminate "$simulator_id" "$bundle_id" || true
-            else
+            if ! capture_screenshot "$file"; then
               result="failed"
-              cat "$launch_log" >&2 || true
             fi
 
-            printf '%s\t%s\n' "$title" "$result" >> "$results"
+            write_result "$title" "$result"
 
             if [[ "$result" != "passed" ]]; then
               return 1
             fi
           }
 
+          open_mode() {
+            local mode="$1"
+            local title="$2"
+            local open_log="$logs_dir/$mode-openurl.txt"
+
+            if xcrun simctl openurl "$simulator_id" "testapp://panel/$mode" > "$open_log" 2>&1; then
+              sleep "$transition_delay_seconds"
+              capture_current_mode "$mode" "$title"
+            else
+              cat "$open_log" >&2 || true
+              write_result "$title" "failed"
+              return 1
+            fi
+          }
+
           overall=0
-          capture_mode "config" "Configuration" || overall=1
-          capture_mode "breathing-horizon" "Breathing horizon" || overall=1
-          capture_mode "silk-ribbon" "Silk ribbon" || overall=1
-          capture_mode "ink-bloom" "Ink bloom" || overall=1
+          launch_log="$logs_dir/app-launch.txt"
+
+          if SIMCTL_CHILD_MEDITATION_ANIMATION_MODE="config" \
+            xcrun simctl launch "$simulator_id" "$bundle_id" > "$launch_log" 2>&1; then
+            sleep "$initial_delay_seconds"
+            capture_current_mode "config" "Configuration" || overall=1
+            open_mode "breathing-horizon" "Breathing horizon" || overall=1
+            open_mode "silk-ribbon" "Silk ribbon" || overall=1
+            open_mode "ink-bloom" "Ink bloom" || overall=1
+          else
+            overall=1
+            cat "$launch_log" >&2 || true
+            write_result "Configuration" "failed"
+            write_result "Breathing horizon" "failed"
+            write_result "Silk ribbon" "failed"
+            write_result "Ink bloom" "failed"
+          fi
+
+          xcrun simctl terminate "$simulator_id" "$bundle_id" || true
 
           {
             echo "# App launch smoke report"
+            echo
+            echo "The app is launched once, then each panel is opened through a smoke URL."
             echo
             echo "Screenshots are uploaded as flat PNG files in the \`app-smoke-screenshots\` artifact."
             echo
