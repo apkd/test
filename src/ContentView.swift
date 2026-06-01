@@ -336,25 +336,50 @@ struct ContentView: View {
         while !Task.isCancelled {
             if let rawValue = try? String(contentsOf: controlURL, encoding: .utf8),
                rawValue != lastRawValue,
-               let panel = MeditationPanel.smokeControlPanel(rawValue) {
+               let command = smokeControlCommand(rawValue) {
                 lastRawValue = rawValue
-                applySmokeControlPanel(panel)
+                applySmokeControlCommand(command)
             }
 
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
     }
 
-    private func applySmokeControlPanel(_ panel: MeditationPanel) {
+    private func smokeControlCommand(_ rawValue: String) -> SmokeControlCommand? {
+        let parts = rawValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split { separator in
+                separator.isWhitespace || separator == "|" || separator == "," || separator == ";"
+            }
+
+        guard let panelValue = parts.first,
+              let panel = MeditationPanel.smokeControlPanel(String(panelValue)) else {
+            return nil
+        }
+
+        let cycleProgress = parts
+            .dropFirst()
+            .compactMap { Double($0) }
+            .first
+            .map { min(0.999, max(0, $0)) }
+
+        return SmokeControlCommand(panel: panel, cycleProgress: cycleProgress)
+    }
+
+    private func applySmokeControlCommand(_ command: SmokeControlCommand) {
         var transaction = Transaction()
         transaction.disablesAnimations = true
 
         withTransaction(transaction) {
-            if panel == .configuration {
+            if command.panel == .configuration {
                 presentConfiguration(animated: false)
             } else {
                 dismissConfiguration(animated: false)
-                setPanel(panel, reveal: true)
+                setPanel(command.panel, reveal: true)
+            }
+
+            if let cycleProgress = command.cycleProgress {
+                startedAt = Date().addingTimeInterval(-settings.timeline.cycleDuration * cycleProgress)
             }
         }
     }
@@ -522,6 +547,11 @@ private struct HapticsLoopID: Equatable {
     let startedAt: Date
     let settings: MeditationSettings
     let sceneIsActive: Bool
+}
+
+private struct SmokeControlCommand: Equatable {
+    let panel: MeditationPanel
+    let cycleProgress: Double?
 }
 
 private struct PanelContentState: Identifiable, Equatable {

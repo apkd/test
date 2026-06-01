@@ -20,41 +20,47 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let motionScale: CGFloat = reduceMotion ? 0.35 : 1
-        let breath = CGFloat(snapshot.breathAmount) * motionScale
-        let centerY = height * (0.55 - 0.018 * breath)
-        let sampleCount = reduceMotion ? 42 : 66
+        let breath = CGFloat(snapshot.breathAmount)
+        let phaseEase = CGFloat(BreathingTimeline.smoothstep(snapshot.phaseProgress))
+        let inhaleDrive = snapshot.isInhale ? phaseEase : 0
+        let energy = (snapshot.isInhale ? 0.45 + 0.95 * inhaleDrive : 0.15 + 0.26 * breath) * motionScale
+        let spread = 0.44 + 0.82 * breath * motionScale
+        let centerY = height * (0.55 - 0.010 * breath * motionScale)
+        let sampleCount = reduceMotion ? 44 : 70
+        let stringCount = reduceMotion ? 7 : 11
         var strings: [LightString] = []
 
-        for layer in 0..<9 {
+        for layer in 0..<stringCount {
             let i = CGFloat(layer)
             let seed = layer * 37 + 19
             let n0 = pseudoNoise(seed)
             let n1 = pseudoNoise(seed + 11)
             let n2 = pseudoNoise(seed + 23)
             let n3 = pseudoNoise(seed + 41)
-            let phase = CGFloat(time) * (0.18 + 0.08 * n0) + i * 1.73
-            let counterPhase = CGFloat(time) * (0.10 + 0.09 * n2) + i * 2.61
+            let phase = CGFloat(time) * (0.08 + 0.44 * energy + 0.06 * n0) + i * 1.73
+            let counterPhase = CGFloat(time) * (0.035 + 0.18 * energy + 0.04 * n2) + i * 2.61
             let horizontalDrift = width * (
-                0.16 * sin(phase * 0.68 + i)
-                + 0.07 * sin(counterPhase + 1.7)
-                + 0.035 * cos(CGFloat(time) * 0.045 + i * 3.4)
+                (0.045 + 0.13 * spread) * sin(phase * 0.56 + i)
+                + (0.024 + 0.052 * energy) * sin(counterPhase + 1.7)
+                + 0.018 * cos(CGFloat(time) * 0.040 + i * 3.4)
             )
-            let baseOffset = (i - 4) * (height * 0.014 + 5 * n1) + (n2 - 0.5) * height * 0.12
-            let amplitudeA = height * (0.080 + 0.045 * n1) * (0.76 + 0.34 * breath)
-            let amplitudeB = height * (0.022 + 0.026 * n2)
-            let amplitudeC = height * (0.010 + 0.014 * n3)
+            let baseOffset = (i - CGFloat(stringCount - 1) * 0.5) * (height * (0.010 + 0.014 * spread) + 4 * n1)
+                + (n2 - 0.5) * height * 0.085 * spread
+            let amplitudeA = height * (0.038 + 0.070 * n1) * spread
+            let amplitudeB = height * (0.012 + 0.035 * n2) * (0.70 + 0.72 * energy)
+            let amplitudeC = height * (0.006 + 0.017 * n3) * (0.45 + 0.88 * energy)
             var spine: [CGPoint] = []
 
             for sample in 0...sampleCount {
                 let progress = CGFloat(sample) / CGFloat(sampleCount)
                 let envelope = sin(progress * .pi)
                 let flow = progress * 2 * .pi
-                let xCurl = width * 0.040 * envelope * sin(flow * (1.1 + 0.28 * n3) - phase * 0.84 + i)
+                let xCurl = width * (0.014 + 0.052 * energy) * envelope * sin(flow * (1.1 + 0.28 * n3) - phase * 0.80 + i)
                 let x = width * (-0.22 + 1.44 * progress) + horizontalDrift + xCurl
                 let primary = sin(flow * (0.82 + 0.22 * n0) + phase)
                 let secondary = sin(flow * (1.72 + 0.44 * n2) - counterPhase * 0.62 + i * 0.8)
                 let tertiary = sin(flow * (3.20 + 0.34 * n3) + phase * 1.28 + i * 1.5)
-                let inhaleCurl = (breath - 0.5) * height * 0.040 * envelope * sin(flow + i * 0.7)
+                let inhaleCurl = inhaleDrive * height * 0.042 * envelope * sin(flow + phase * 0.36 + i * 0.7)
                 let y = centerY
                     + baseOffset
                     + envelope * amplitudeA * primary
@@ -69,16 +75,16 @@ enum MeditationRenderer {
                 LightString(
                     path: smoothPath(through: spine),
                     color: lightStringColor(index: layer, seed: n0, breath: breath),
-                    glowWidth: 12 + 12 * n1 + 9 * breath,
-                    coreWidth: 0.9 + 1.4 * n3,
-                    glowOpacity: 0.16 + 0.09 * Double(breath) + 0.035 * Double(n2),
-                    coreOpacity: 0.24 + 0.16 * Double(breath) + 0.05 * Double(n0)
+                    glowWidth: 18 + 18 * n1 + 12 * spread,
+                    coreWidth: 0.45 + 0.78 * n3,
+                    glowOpacity: 0.12 + 0.07 * Double(breath) + 0.055 * Double(energy) + 0.030 * Double(n2),
+                    coreOpacity: 0.08 + 0.06 * Double(breath) + 0.075 * Double(energy) + 0.018 * Double(n0)
                 )
             )
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 12 + 8 * breath))
+            layerContext.addFilter(.blur(radius: 18 + 9 * breath))
 
             for string in strings {
                 layerContext.stroke(
@@ -90,31 +96,36 @@ enum MeditationRenderer {
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 2.5 + 2.5 * breath))
+            layerContext.addFilter(.blur(radius: 5.5 + 3.0 * breath))
 
             for string in strings {
                 layerContext.stroke(
                     string.path,
-                    with: .color(string.color.opacity(string.coreOpacity * 0.50)),
-                    style: StrokeStyle(lineWidth: string.coreWidth * 4.2, lineCap: .round, lineJoin: .round)
+                    with: .color(string.color.opacity(string.coreOpacity * 0.62)),
+                    style: StrokeStyle(lineWidth: string.coreWidth * 6.5, lineCap: .round, lineJoin: .round)
                 )
             }
         }
 
-        for string in strings {
-            context.stroke(
-                string.path,
-                with: .color(string.color.opacity(string.coreOpacity)),
-                style: StrokeStyle(lineWidth: string.coreWidth, lineCap: .round, lineJoin: .round)
-            )
+        context.drawLayer { layerContext in
+            layerContext.addFilter(.blur(radius: 1.4))
+
+            for string in strings {
+                layerContext.stroke(
+                    string.path,
+                    with: .color(string.color.opacity(string.coreOpacity * 0.56)),
+                    style: StrokeStyle(lineWidth: string.coreWidth, lineCap: .round, lineJoin: .round)
+                )
+            }
         }
 
         drawSoftParticles(
             in: &context,
             size: size,
-            count: reduceMotion ? 10 : 22,
+            count: reduceMotion ? 14 : 42,
             centerY: centerY,
             breath: breath,
+            energy: energy,
             time: time,
             color: Color(red: 0.74, green: 0.9, blue: 1.0)
         )
@@ -133,10 +144,11 @@ enum MeditationRenderer {
         let breath = CGFloat(snapshot.breathAmount) * motionScale
         let horizonY = height * 0.60
         let cameraWobble = CGFloat(sin(time * 0.17) * 1.4 + cos(time * 0.11) * 0.9) * motionScale
-        let sunRadius = min(width, height) * 0.15
+        let baseSunRadius = min(width, height) * 0.15
+        let sunRadius = baseSunRadius * (0.975 + 0.05 * breath)
         let sunCenter = CGPoint(
             x: width * (0.5 + 0.012 * sin(CGFloat(time) * 0.08)),
-            y: horizonY + cameraWobble + height * 0.05 - sunRadius * (0.52 + 0.80 * breath)
+            y: horizonY + cameraWobble + height * 0.05 - baseSunRadius * (0.52 + 0.64 * breath)
         )
 
         var sky = Path()
@@ -229,27 +241,6 @@ enum MeditationRenderer {
 
         drawOceanSurface(in: &context, size: size, horizonY: horizonY, breath: breath, time: time, sunCenterX: sunCenter.x)
         drawReflection(in: &context, size: size, horizonY: horizonY, breath: breath, time: time, sunCenterX: sunCenter.x)
-
-        var horizon = Path()
-        for step in 0...28 {
-            let x = width * CGFloat(step) / 28
-            let wobble = CGFloat(
-                sin(time * 0.24 + Double(step) * 0.58) * 1.8
-                + sin(time * 0.13 + Double(step) * 0.31) * 0.9
-            ) * motionScale
-            let point = CGPoint(x: x, y: horizonY + wobble)
-
-            if step == 0 {
-                horizon.move(to: point)
-            } else {
-                horizon.addLine(to: point)
-            }
-        }
-        context.stroke(
-            horizon,
-            with: .color(Color.white.opacity(0.34 + Double(breath) * 0.10)),
-            style: StrokeStyle(lineWidth: 1.4, lineCap: .round)
-        )
     }
 
     static func drawInkBloom(
@@ -486,20 +477,21 @@ enum MeditationRenderer {
             }
         }
 
-        drawSubtleNoise(in: &context, size: size, count: reduceMotion ? 120 : 220)
+        drawSubtleNoise(in: &context, size: size, count: reduceMotion ? 220 : 520, alphaScale: reduceMotion ? 0.9 : 1.18)
     }
 
     private static func drawSubtleNoise(
         in context: inout GraphicsContext,
         size: CGSize,
-        count: Int
+        count: Int,
+        alphaScale: Double
     ) {
         for index in 0..<count {
             let n0 = pseudoNoise(index * 73 + 17)
             let n1 = pseudoNoise(index * 73 + 31)
             let n2 = pseudoNoise(index * 73 + 59)
-            let radius = 0.45 + 0.85 * n2
-            let alpha = 0.006 + 0.012 * Double(pseudoNoise(index * 73 + 83))
+            let radius = 0.34 + 0.92 * n2
+            let alpha = (0.0065 + 0.0125 * Double(pseudoNoise(index * 73 + 83))) * alphaScale
             let color = index.isMultiple(of: 2)
                 ? Color.white.opacity(alpha)
                 : Color.black.opacity(alpha * 0.65)
@@ -525,58 +517,72 @@ enum MeditationRenderer {
         let t = CGFloat(time)
 
         context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 0.7))
+            layer.addFilter(.blur(radius: 0.55))
 
-            for index in 0..<22 {
+            for index in 0..<54 {
                 let i = CGFloat(index)
-                let seed = index * 19 + 113
+                let seed = index * 29 + 113
                 let n0 = pseudoNoise(seed)
                 let n1 = pseudoNoise(seed + 7)
                 let n2 = pseudoNoise(seed + 17)
-                let depth = (i + 0.45 * n0) / 22
-                let y = horizonY + 16 + depth * waterHeight * 0.78
-                let spread = width * (0.05 + 0.64 * depth)
-                let centerX = sunCenterX + (n1 - 0.5) * spread
-                let halfWidth = width * (0.035 + 0.16 * depth) * (0.7 + 0.7 * n2)
-                let phase = t * (0.30 + 0.16 * n0) + i * 0.73
-                let amplitude = 2 + 8 * depth * (0.55 + n1)
-                let opacity = (0.10 + 0.18 * Double(breath)) * Double(1 - depth * 0.62) * Double(0.45 + 0.65 * n2)
+                let n3 = pseudoNoise(seed + 31)
+                let depth = (i + 0.55 * n0) / 54
+                let y = horizonY + 10 + depth * waterHeight * 0.88
+                let spread = width * (0.035 + 0.78 * depth)
+                let centerX = sunCenterX
+                    + (n1 - 0.5) * spread
+                    + width * 0.012 * sin(t * (0.08 + 0.10 * n2) + i * 1.7)
+                let halfWidth = width * (0.012 + 0.090 * depth) * (0.38 + 0.92 * n2)
+                let phase = t * (0.26 + 0.30 * n0) + n3 * .pi * 2
+                let shimmer = 0.42 + 0.58 * (0.5 + 0.5 * sin(t * (0.34 + 0.42 * n2) + n1 * .pi * 2))
+                let amplitude = 1.0 + 6.5 * depth * (0.45 + n1)
+                let opacity = (0.055 + 0.18 * Double(breath))
+                    * Double(1 - depth * 0.58)
+                    * Double(0.32 + 0.80 * n2)
+                    * Double(shimmer)
                 let path = wavePath(
                     startX: centerX - halfWidth,
                     endX: centerX + halfWidth,
                     y: y,
                     amplitude: amplitude,
                     phase: phase,
-                    segments: 3
+                    segments: n3 > 0.62 ? 3 : 2
                 )
 
                 layer.stroke(
                     path,
-                    with: .color(Color(red: 1.0, green: 0.67, blue: 0.42).opacity(opacity)),
-                    style: StrokeStyle(lineWidth: 1.0 + 1.8 * breath + 0.9 * n0, lineCap: .round, lineJoin: .round)
+                    with: .color(Color(red: 1.0, green: 0.66 + 0.08 * Double(n1), blue: 0.42).opacity(opacity)),
+                    style: StrokeStyle(lineWidth: 0.45 + 1.25 * breath + 0.85 * n0, lineCap: .round, lineJoin: .round)
                 )
             }
         }
 
-        for index in 0..<14 {
-            let i = CGFloat(index)
-            let depth = i / 14
-            let y = horizonY + 24 + i * waterHeight / 17
-            let halfWidth = width * (0.09 + 0.036 * i) * (0.76 + 0.34 * breath)
-            let phase = t * 0.42 + i * 0.82
+        for index in 0..<34 {
+            let seed = index * 43 + 227
+            let n0 = pseudoNoise(seed)
+            let n1 = pseudoNoise(seed + 13)
+            let n2 = pseudoNoise(seed + 29)
+            let n3 = pseudoNoise(seed + 41)
+            let depth = (CGFloat(index) + 0.7 * n0) / 34
+            let y = horizonY + 18 + depth * waterHeight * 0.82
+            let spread = width * (0.05 + 0.58 * depth)
+            let centerX = sunCenterX + (n1 - 0.5) * spread
+            let halfWidth = width * (0.020 + 0.060 * n2) * (0.72 + 0.58 * depth)
+            let phase = t * (0.34 + 0.22 * n1) + n3 * .pi * 2
+            let brightness = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * (0.40 + 0.38 * n0) + n2 * .pi * 2))
             let path = wavePath(
-                startX: sunCenterX - halfWidth,
-                endX: sunCenterX + halfWidth,
+                startX: centerX - halfWidth,
+                endX: centerX + halfWidth,
                 y: y,
-                amplitude: 5 + 9 * depth,
+                amplitude: 1.5 + 7.0 * depth * (0.5 + n3),
                 phase: phase,
-                segments: 4
+                segments: 2
             )
 
             context.stroke(
                 path,
-                with: .color(Color(red: 1.0, green: 0.68, blue: 0.42).opacity((0.18 + 0.18 * Double(breath)) * Double(1 - depth * 0.78))),
-                style: StrokeStyle(lineWidth: 1.2 + breath * 1.8, lineCap: .round)
+                with: .color(Color(red: 1.0, green: 0.70, blue: 0.44).opacity((0.055 + 0.15 * Double(breath)) * Double(1 - depth * 0.74) * Double(brightness))),
+                style: StrokeStyle(lineWidth: 0.55 + 1.05 * breath + 0.55 * n2, lineCap: .round, lineJoin: .round)
             )
         }
     }
@@ -701,6 +707,7 @@ enum MeditationRenderer {
         count: Int,
         centerY: CGFloat,
         breath: CGFloat,
+        energy: CGFloat,
         time: TimeInterval,
         color: Color
     ) {
@@ -708,22 +715,24 @@ enum MeditationRenderer {
         let height = size.height
 
         context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 4 + 4 * breath))
+            layer.addFilter(.blur(radius: 1.5 + 2.3 * breath))
 
             for index in 0..<count {
                 let noise = pseudoNoise(index)
-                let phase = CGFloat(time) * (0.18 + 0.10 * pseudoNoise(index + 8)) + CGFloat(index) * 1.7
-                let x = width * CGFloat(noise) + width * 0.025 * sin(phase * 0.7)
-                let y = centerY + sin(phase) * (height * 0.035 + 34 * breath)
-                let radius = CGFloat(5.0 + 12.0 * pseudoNoise(index + 13)) * (0.85 + 0.45 * breath)
-                let opacity = 0.055 + 0.10 * Double(breath) * Double(0.35 + pseudoNoise(index + 5))
+                let n1 = pseudoNoise(index + 8)
+                let n2 = pseudoNoise(index + 13)
+                let phase = CGFloat(time) * (0.08 + 0.38 * energy + 0.08 * n1) + CGFloat(index) * 1.7
+                let x = width * CGFloat(noise) + width * (0.012 + 0.030 * energy) * sin(phase * 0.7)
+                let y = centerY + sin(phase) * (height * (0.018 + 0.046 * breath))
+                let radius = CGFloat(0.95 + 2.45 * n2) * (0.78 + 0.50 * breath)
+                let opacity = 0.12 + 0.18 * Double(energy) * Double(0.45 + pseudoNoise(index + 5))
 
                 layer.fill(
                     Path(ellipseIn: CGRect(
-                        x: x - radius * (1.2 + pseudoNoise(index + 21)),
-                        y: y - radius * (0.9 + 0.6 * pseudoNoise(index + 34)),
-                        width: radius * (2.0 + 1.0 * pseudoNoise(index + 55)),
-                        height: radius * (1.8 + 1.1 * pseudoNoise(index + 89))
+                        x: x - radius * (1.0 + 0.55 * pseudoNoise(index + 21)),
+                        y: y - radius * (0.9 + 0.40 * pseudoNoise(index + 34)),
+                        width: radius * (1.8 + 0.70 * pseudoNoise(index + 55)),
+                        height: radius * (1.7 + 0.70 * pseudoNoise(index + 89))
                     )),
                     with: .radialGradient(
                         Gradient(colors: [

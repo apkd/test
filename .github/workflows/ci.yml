@@ -409,7 +409,7 @@ jobs:
           logs_dir="$RUNNER_TEMP/app-smoke-logs"
           results="$RUNNER_TEMP/app-smoke-results.tsv"
           initial_delay_seconds="0.8"
-          transition_delay_seconds="0.45"
+          transition_delay_seconds="0.24"
           smoke_file_name="meditation-smoke-panel.txt"
 
           rm -rf "$screenshots_dir"
@@ -436,9 +436,9 @@ jobs:
           }
 
           capture_current_mode() {
-            local mode="$1"
+            local file_name="$1"
             local title="$2"
-            local file="$screenshots_dir/$mode.png"
+            local file="$screenshots_dir/$file_name.png"
             local result="passed"
 
             if ! capture_screenshot "$file"; then
@@ -452,13 +452,24 @@ jobs:
             fi
           }
 
-          set_mode() {
+          set_mode_phase() {
+            local mode="$1"
+            local title="$2"
+            local phase_name="$3"
+            local cycle_progress="$4"
+
+            printf '%s %.3f\n' "$mode" "$cycle_progress" > "$smoke_control_file"
+            sleep "$transition_delay_seconds"
+            capture_current_mode "$mode-$phase_name" "$title ($phase_name)"
+          }
+
+          capture_animation_panel() {
             local mode="$1"
             local title="$2"
 
-            printf '%s\n' "$mode" > "$smoke_control_file"
-            sleep "$transition_delay_seconds"
-            capture_current_mode "$mode" "$title"
+            set_mode_phase "$mode" "$title" "inhale" "0.250"
+            set_mode_phase "$mode" "$title" "full" "0.500"
+            set_mode_phase "$mode" "$title" "exhale" "0.850"
           }
 
           overall=0
@@ -474,18 +485,26 @@ jobs:
             xcrun simctl launch "$simulator_id" "$bundle_id" > "$launch_log" 2>&1; then
             sleep "$initial_delay_seconds"
             capture_current_mode "config" "Configuration" || overall=1
-            set_mode "breathing-horizon" "Breathing horizon" || overall=1
-            set_mode "silk-ribbon" "Silk ribbon" || overall=1
-            set_mode "ink-bloom" "Ink bloom" || overall=1
-            set_mode "soft-glow" "Soft glow" || overall=1
+            capture_animation_panel "breathing-horizon" "Breathing horizon" || overall=1
+            capture_animation_panel "silk-ribbon" "Silk ribbon" || overall=1
+            capture_animation_panel "ink-bloom" "Ink bloom" || overall=1
+            capture_animation_panel "soft-glow" "Soft glow" || overall=1
           else
             overall=1
             cat "$launch_log" >&2 || true
             write_result "Configuration" "failed"
-            write_result "Breathing horizon" "failed"
-            write_result "Silk ribbon" "failed"
-            write_result "Ink bloom" "failed"
-            write_result "Soft glow" "failed"
+            write_result "Breathing horizon (inhale)" "failed"
+            write_result "Breathing horizon (full)" "failed"
+            write_result "Breathing horizon (exhale)" "failed"
+            write_result "Silk ribbon (inhale)" "failed"
+            write_result "Silk ribbon (full)" "failed"
+            write_result "Silk ribbon (exhale)" "failed"
+            write_result "Ink bloom (inhale)" "failed"
+            write_result "Ink bloom (full)" "failed"
+            write_result "Ink bloom (exhale)" "failed"
+            write_result "Soft glow (inhale)" "failed"
+            write_result "Soft glow (full)" "failed"
+            write_result "Soft glow (exhale)" "failed"
           fi
 
           xcrun simctl terminate "$simulator_id" "$bundle_id" || true
@@ -493,7 +512,7 @@ jobs:
           {
             echo "# App launch smoke report"
             echo
-            echo "The app is launched once, then each panel is selected through an env-gated smoke control file."
+            echo "The app is launched once, then each panel is selected through an env-gated smoke control file. Animation panels are captured at inhale, full-breath, and exhale cycle positions."
             echo
             echo "Screenshots are uploaded as flat PNG files in the \`app-smoke-screenshots\` artifact."
             echo
