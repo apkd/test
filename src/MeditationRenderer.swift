@@ -263,9 +263,10 @@ enum MeditationRenderer {
         let motionScale: CGFloat = reduceMotion ? 0.35 : 1
         let breath = CGFloat(snapshot.breathAmount) * motionScale
         let fullBreath = CGFloat(snapshot.breathAmount)
+        let t = CGFloat(time)
         let center = CGPoint(
-            x: width * (0.51 + 0.018 * sin(CGFloat(time) * 0.10)),
-            y: height * (0.47 + 0.025 * cos(CGFloat(time) * 0.07))
+            x: width * (0.51 + 0.018 * sin(t * 0.10)),
+            y: height * (0.47 + 0.025 * cos(t * 0.07))
         )
         let scale = min(width, height)
         let reach = scale * (0.30 + 0.32 * breath)
@@ -278,40 +279,44 @@ enum MeditationRenderer {
                 let n0 = pseudoNoise(index + 3)
                 let n1 = pseudoNoise(index + 17)
                 let n2 = pseudoNoise(index + 31)
-                let localPulse = 0.5 + 0.5 * sin(CGFloat(time) * (0.08 + 0.08 * n1) + i * 2.31 + n2 * 6.28)
+                let localPulseSpeed = 0.08 + 0.08 * n1
+                let localPulse = 0.5 + 0.5 * sin(t * localPulseSpeed + i * 2.31 + n2 * 6.28)
                 let localBreath = min(1, max(0, 0.56 * fullBreath + 0.44 * localPulse))
                 let angle = i * 2.399_963
-                    + CGFloat(time) * (0.016 + 0.030 * n0)
+                    + t * (0.016 + 0.030 * n0)
                     + CGFloat(localPulse) * 0.36
                 let distance = reach * (0.12 + 0.48 * n0) * (0.78 + 0.34 * localBreath)
+                let driftXSpeed = 0.07 + 0.06 * n0
+                let driftYSpeed = 0.06 + 0.05 * n2
                 let drift = CGPoint(
-                    x: scale * (0.018 + 0.030 * n2) * sin(CGFloat(time) * (0.07 + 0.06 * n0) + i * 1.7),
-                    y: scale * (0.016 + 0.026 * n1) * cos(CGFloat(time) * (0.06 + 0.05 * n2) + i * 1.2)
+                    x: scale * (0.018 + 0.030 * n2) * sin(t * driftXSpeed + i * 1.7),
+                    y: scale * (0.016 + 0.026 * n1) * cos(t * driftYSpeed + i * 1.2)
                 )
                 let cloudCenter = CGPoint(
                     x: center.x + cos(angle) * distance * 1.20 + drift.x,
                     y: center.y + sin(angle) * distance * 0.82 + drift.y
                 )
                 let radius = scale * (0.18 + 0.15 * n1) * (0.88 + 0.34 * localBreath)
+                let rect = CGRect(
+                    x: cloudCenter.x - radius * (1.05 + n0),
+                    y: cloudCenter.y - radius * (0.88 + 0.45 * n1),
+                    width: radius * (1.9 + 1.2 * n0),
+                    height: radius * (1.6 + 1.0 * n1)
+                )
+                let colors: [Color] = [
+                    Color(red: 0.78, green: 0.66, blue: 1.0).opacity(0.19 + 0.11 * Double(localBreath)),
+                    Color(red: 0.20, green: 0.63, blue: 1.0).opacity(0.13 + 0.10 * Double(localPulse)),
+                    Color(red: 0.36, green: 0.18, blue: 0.78).opacity(0.08),
+                    .clear,
+                ]
 
-                layer.fill(
-                    Path(ellipseIn: CGRect(
-                        x: cloudCenter.x - radius * (1.05 + n0),
-                        y: cloudCenter.y - radius * (0.88 + 0.45 * n1),
-                        width: radius * (1.9 + 1.2 * n0),
-                        height: radius * (1.6 + 1.0 * n1)
-                    )),
-                    with: .radialGradient(
-                        Gradient(colors: [
-                            Color(red: 0.78, green: 0.66, blue: 1.0).opacity(0.19 + 0.11 * Double(localBreath)),
-                            Color(red: 0.20, green: 0.63, blue: 1.0).opacity(0.13 + 0.10 * Double(localPulse)),
-                            Color(red: 0.36, green: 0.18, blue: 0.78).opacity(0.08),
-                            .clear,
-                        ]),
-                        center: cloudCenter,
-                        startRadius: 0,
-                        endRadius: radius * 1.8
-                    )
+                fillRadialEllipse(
+                    in: &layer,
+                    rect: rect,
+                    center: cloudCenter,
+                    startRadius: 0,
+                    endRadius: radius * 1.8,
+                    colors: colors
                 )
             }
         }
@@ -325,16 +330,20 @@ enum MeditationRenderer {
                 let n1 = pseudoNoise(index + 19)
                 let n2 = pseudoNoise(index + 37)
                 let n3 = pseudoNoise(index + 53)
-                let localPulse = 0.5 + 0.5 * sin(CGFloat(time) * (0.11 + 0.18 * n2) + i * 1.71 + n1 * 4.4)
-                let counterPulse = 0.5 + 0.5 * cos(CGFloat(time) * (0.07 + 0.13 * n3) + i * 0.97 + n0 * 5.2)
+                let localPulseSpeed = 0.11 + 0.18 * n2
+                let counterPulseSpeed = 0.07 + 0.13 * n3
+                let localPulse = 0.5 + 0.5 * sin(t * localPulseSpeed + i * 1.71 + n1 * 4.4)
+                let counterPulse = 0.5 + 0.5 * cos(t * counterPulseSpeed + i * 0.97 + n0 * 5.2)
                 let localBreath = min(1, max(0, 0.50 * fullBreath + 0.30 * localPulse + 0.20 * counterPulse))
                 let angle = i * 2.399_963
-                    + CGFloat(time) * (0.012 + 0.028 * n1)
+                    + t * (0.012 + 0.028 * n1)
                     + CGFloat(counterPulse - 0.5) * 0.44
                 let distance = reach * (0.12 + 0.86 * n0) * (0.76 + 0.34 * localPulse + 0.20 * localBreath)
+                let driftXSpeed = 0.10 + 0.12 * n2
+                let driftYSpeed = 0.08 + 0.11 * n1
                 let drift = CGPoint(
-                    x: scale * (0.012 + 0.026 * n3) * sin(CGFloat(time) * (0.10 + 0.12 * n2) + i * 2.4),
-                    y: scale * (0.012 + 0.024 * n2) * cos(CGFloat(time) * (0.08 + 0.11 * n1) + i * 1.8)
+                    x: scale * (0.012 + 0.026 * n3) * sin(t * driftXSpeed + i * 2.4),
+                    y: scale * (0.012 + 0.024 * n2) * cos(t * driftYSpeed + i * 1.8)
                 )
                 let asymmetry = CGSize(
                     width: cos(angle) * distance * (1.20 + 0.34 * sin(i * 0.61 + counterPulse)),
@@ -346,26 +355,27 @@ enum MeditationRenderer {
                 )
                 let radius = scale * (0.046 + 0.094 * n1) * (0.84 + 0.54 * localBreath)
                 let alpha = 0.13 + 0.16 * Double(localPulse) + 0.12 * Double(localBreath)
+                let rect = CGRect(
+                    x: particleCenter.x - radius * (0.8 + n2),
+                    y: particleCenter.y - radius * (0.8 + 0.8 * n3),
+                    width: radius * (1.3 + 1.6 * n2),
+                    height: radius * (1.2 + 1.7 * n3)
+                )
+                let colors: [Color] = [
+                    Color.white.opacity(alpha * 0.34),
+                    Color(red: 0.82, green: 0.62, blue: 1.0).opacity(alpha * 1.05),
+                    Color(red: 0.18, green: 0.70, blue: 1.0).opacity(alpha * 0.72),
+                    Color(red: 0.42, green: 0.18, blue: 0.86).opacity(alpha * 0.48),
+                    .clear,
+                ]
 
-                layer.fill(
-                    Path(ellipseIn: CGRect(
-                        x: particleCenter.x - radius * (0.8 + n2),
-                        y: particleCenter.y - radius * (0.8 + 0.8 * n3),
-                        width: radius * (1.3 + 1.6 * n2),
-                        height: radius * (1.2 + 1.7 * n3)
-                    )),
-                    with: .radialGradient(
-                        Gradient(colors: [
-                            Color.white.opacity(alpha * 0.34),
-                            Color(red: 0.82, green: 0.62, blue: 1.0).opacity(alpha * 1.05),
-                            Color(red: 0.18, green: 0.70, blue: 1.0).opacity(alpha * 0.72),
-                            Color(red: 0.42, green: 0.18, blue: 0.86).opacity(alpha * 0.48),
-                            .clear,
-                        ]),
-                        center: particleCenter,
-                        startRadius: radius * 0.04,
-                        endRadius: radius * 1.9
-                    )
+                fillRadialEllipse(
+                    in: &layer,
+                    rect: rect,
+                    center: particleCenter,
+                    startRadius: radius * 0.04,
+                    endRadius: radius * 1.9,
+                    colors: colors
                 )
             }
         }
@@ -507,6 +517,25 @@ enum MeditationRenderer {
         }
 
         return path
+    }
+
+    private static func fillRadialEllipse(
+        in context: inout GraphicsContext,
+        rect: CGRect,
+        center: CGPoint,
+        startRadius: CGFloat,
+        endRadius: CGFloat,
+        colors: [Color]
+    ) {
+        context.fill(
+            Path(ellipseIn: rect),
+            with: .radialGradient(
+                Gradient(colors: colors),
+                center: center,
+                startRadius: startRadius,
+                endRadius: endRadius
+            )
+        )
     }
 
     private static func lightStringColor(index: Int, seed: CGFloat, breath: CGFloat) -> Color {
