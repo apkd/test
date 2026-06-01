@@ -83,6 +83,8 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
     case silkRibbon
     case inkBloom
 
+    static let urlScheme = "testapp"
+
     var id: Int { rawValue }
 
     var title: String {
@@ -156,6 +158,29 @@ enum MeditationPanel: Int, CaseIterable, Identifiable {
             return nil
         }
 
+        return panel(matching: rawValue)
+    }
+
+    static func appURLPanel(_ url: URL) -> MeditationPanel? {
+        guard url.scheme?.lowercased() == urlScheme else {
+            return nil
+        }
+
+        let ignoredPathComponents: Set<String> = ["panel", "screen", "mode", "smoke"]
+        let candidates = ([url.host].compactMap(\.self) + url.pathComponents)
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased() }
+            .filter { !$0.isEmpty && !ignoredPathComponents.contains($0) }
+
+        for candidate in candidates {
+            if let panel = panel(matching: candidate) {
+                return panel
+            }
+        }
+
+        return nil
+    }
+
+    private static func panel(matching rawValue: String) -> MeditationPanel? {
         if rawValue == "configuration" || rawValue == "config" {
             return .configuration
         }

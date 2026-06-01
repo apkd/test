@@ -138,6 +138,13 @@ struct ContentView: View {
             haptics.startLoopingPattern(for: timeline, elapsed: BreathingTimeline.initialElapsedOffset)
             revealChromeTemporarily()
         }
+        .onOpenURL { url in
+            guard let panel = MeditationPanel.appURLPanel(url) else {
+                return
+            }
+
+            setPanel(panel)
+        }
         .task(id: hapticsLoopID) {
             guard hapticsLoopID.sceneIsActive else {
                 haptics.stop()

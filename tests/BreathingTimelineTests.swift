@@ -213,6 +213,17 @@ struct BreathingTimelineTests {
     }
 
     @Test
+    func appURLCanSelectSmokeTestPanels() throws {
+        #expect(MeditationPanel.urlScheme == "testapp")
+        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://panel/config"))) == .configuration)
+        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://screen/breathing-horizon"))) == .breathingHorizon)
+        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://mode/silk-ribbon"))) == .silkRibbon)
+        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://smoke/ink-bloom"))) == .inkBloom)
+        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "testapp://panel/unknown"))) == nil)
+        #expect(MeditationPanel.appURLPanel(try #require(URL(string: "other://panel/config"))) == nil)
+    }
+
+    @Test
     func persistenceKeysAreStable() {
         #expect(MeditationPersistenceKey.panelRawValue == "meditation.panel.rawValue")
         #expect(MeditationPersistenceKey.lastAnimationModeRawValue == "meditation.lastAnimationMode.rawValue")
