@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage(MeditationPersistenceKey.panelRawValue) private var panelRawValue = MeditationPanel.breathingHorizon.rawValue
     @AppStorage(MeditationPersistenceKey.lastAnimationModeRawValue) private var lastAnimationModeRawValue = MeditationAnimationMode.breathingHorizon.rawValue
@@ -42,7 +43,7 @@ struct ContentView: View {
     }
 
     private var hapticsLoopID: HapticsLoopID {
-        HapticsLoopID(startedAt: startedAt, settings: settings)
+        HapticsLoopID(startedAt: startedAt, settings: settings, sceneIsActive: scenePhase == .active)
     }
 
     var body: some View {
@@ -113,11 +114,25 @@ struct ContentView: View {
             revealChromeTemporarily()
         }
         .task(id: hapticsLoopID) {
+            guard hapticsLoopID.sceneIsActive else {
+                haptics.stop()
+                return
+            }
+
+            haptics.startLoopingPattern(for: settings.timeline, elapsed: Date().timeIntervalSince(startedAt))
             await runHapticsLoop(startedAt: startedAt, settings: settings)
         }
         .onChange(of: settings) { _, newSettings in
             let elapsed = Date().timeIntervalSince(startedAt)
             haptics.startLoopingPattern(for: newSettings.timeline, elapsed: elapsed)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else {
+                return
+            }
+
+            updateMeditationActive(true)
+            haptics.startLoopingPattern(for: timeline, elapsed: Date().timeIntervalSince(startedAt))
         }
         .task(id: chromeFadeToken) {
             guard panel != .configuration else {
@@ -209,6 +224,7 @@ struct ContentView: View {
 private struct HapticsLoopID: Equatable {
     let startedAt: Date
     let settings: MeditationSettings
+    let sceneIsActive: Bool
 }
 
 private struct MeditationScene: View {
