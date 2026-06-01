@@ -227,6 +227,7 @@ enum MeditationRenderer {
             )
         )
 
+        drawOceanSurface(in: &context, size: size, horizonY: horizonY, breath: breath, time: time, sunCenterX: sunCenter.x)
         drawReflection(in: &context, size: size, horizonY: horizonY, breath: breath, time: time, sunCenterX: sunCenter.x)
 
         var horizon = Path()
@@ -414,27 +415,178 @@ enum MeditationRenderer {
     ) {
         let width = size.width
         let height = size.height
+        let waterHeight = max(1, height - horizonY)
+        let t = CGFloat(time)
 
-        for index in 0..<12 {
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 0.7))
+
+            for index in 0..<22 {
+                let i = CGFloat(index)
+                let seed = index * 19 + 113
+                let n0 = pseudoNoise(seed)
+                let n1 = pseudoNoise(seed + 7)
+                let n2 = pseudoNoise(seed + 17)
+                let depth = (i + 0.45 * n0) / 22
+                let y = horizonY + 16 + depth * waterHeight * 0.78
+                let spread = width * (0.05 + 0.64 * depth)
+                let centerX = sunCenterX + (n1 - 0.5) * spread
+                let halfWidth = width * (0.035 + 0.16 * depth) * (0.7 + 0.7 * n2)
+                let phase = t * (0.30 + 0.16 * n0) + i * 0.73
+                let amplitude = 2 + 8 * depth * (0.55 + n1)
+                let opacity = (0.10 + 0.18 * Double(breath)) * Double(1 - depth * 0.62) * Double(0.45 + 0.65 * n2)
+                let path = wavePath(
+                    startX: centerX - halfWidth,
+                    endX: centerX + halfWidth,
+                    y: y,
+                    amplitude: amplitude,
+                    phase: phase,
+                    segments: 3
+                )
+
+                layer.stroke(
+                    path,
+                    with: .color(Color(red: 1.0, green: 0.67, blue: 0.42).opacity(opacity)),
+                    style: StrokeStyle(lineWidth: 1.0 + 1.8 * breath + 0.9 * n0, lineCap: .round, lineJoin: .round)
+                )
+            }
+        }
+
+        for index in 0..<14 {
             let i = CGFloat(index)
-            let y = horizonY + 22 + i * (height - horizonY) / 15
-            let halfWidth = width * (0.10 + 0.028 * i) * (0.75 + 0.35 * breath)
-            let wave = sin(CGFloat(time) * 0.45 + i * 0.82) * 10
-
-            var path = Path()
-            path.move(to: CGPoint(x: sunCenterX - halfWidth, y: y + wave))
-            path.addCurve(
-                to: CGPoint(x: sunCenterX + halfWidth, y: y - wave * 0.3),
-                control1: CGPoint(x: sunCenterX - halfWidth * 0.35, y: y - 8 - wave),
-                control2: CGPoint(x: sunCenterX + halfWidth * 0.35, y: y + 8 + wave)
+            let depth = i / 14
+            let y = horizonY + 24 + i * waterHeight / 17
+            let halfWidth = width * (0.09 + 0.036 * i) * (0.76 + 0.34 * breath)
+            let phase = t * 0.42 + i * 0.82
+            let path = wavePath(
+                startX: sunCenterX - halfWidth,
+                endX: sunCenterX + halfWidth,
+                y: y,
+                amplitude: 5 + 9 * depth,
+                phase: phase,
+                segments: 4
             )
 
             context.stroke(
                 path,
-                with: .color(Color(red: 1.0, green: 0.68, blue: 0.42).opacity((0.16 + 0.17 * Double(breath)) / Double(index + 1))),
+                with: .color(Color(red: 1.0, green: 0.68, blue: 0.42).opacity((0.18 + 0.18 * Double(breath)) * Double(1 - depth * 0.78))),
                 style: StrokeStyle(lineWidth: 1.2 + breath * 1.8, lineCap: .round)
             )
         }
+    }
+
+    private static func drawOceanSurface(
+        in context: inout GraphicsContext,
+        size: CGSize,
+        horizonY: CGFloat,
+        breath: CGFloat,
+        time: TimeInterval,
+        sunCenterX: CGFloat
+    ) {
+        let width = size.width
+        let waterHeight = max(1, size.height - horizonY)
+        let t = CGFloat(time)
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 0.45))
+
+            for index in 0..<38 {
+                let seed = index * 29 + 5
+                let n0 = pseudoNoise(seed)
+                let n1 = pseudoNoise(seed + 11)
+                let n2 = pseudoNoise(seed + 23)
+                let n3 = pseudoNoise(seed + 37)
+                let depth = (CGFloat(index) + 0.65 * n0) / 38
+                let y = horizonY + 9 + depth * waterHeight * 0.96
+                let drift = width * 0.035 * sin(t * (0.06 + 0.08 * n2) + CGFloat(index) * 0.91)
+                let startX = width * (-0.18 + 1.34 * n1) + drift
+                let length = width * (0.11 + 0.30 * n2) * (0.72 + 0.84 * depth)
+                let amplitude = 1.3 + 9.0 * depth * (0.45 + n3)
+                let phase = t * (0.16 + 0.24 * n0) + CGFloat(index) * 0.57
+                let opacity = (0.030 + 0.040 * Double(1 - depth) + 0.030 * Double(breath)) * Double(0.55 + 0.55 * n2)
+                let path = wavePath(
+                    startX: startX,
+                    endX: startX + length,
+                    y: y,
+                    amplitude: amplitude,
+                    phase: phase,
+                    segments: depth < 0.25 ? 2 : 4
+                )
+
+                layer.stroke(
+                    path,
+                    with: .color(Color(red: 0.72, green: 0.88, blue: 1.0).opacity(opacity)),
+                    style: StrokeStyle(lineWidth: 0.8 + 0.8 * depth + 0.5 * n0, lineCap: .round, lineJoin: .round)
+                )
+            }
+        }
+
+        for index in 0..<18 {
+            let seed = index * 31 + 211
+            let n0 = pseudoNoise(seed)
+            let n1 = pseudoNoise(seed + 13)
+            let n2 = pseudoNoise(seed + 29)
+            let depth = (CGFloat(index) + 0.35 * n0) / 18
+            let y = horizonY + waterHeight * (0.08 + 0.82 * depth)
+            let sunPull = 1 - abs(depth - 0.36)
+            let x = sunCenterX + (n1 - 0.5) * width * (0.22 + 0.70 * depth)
+            let length = width * (0.035 + 0.13 * n2) * (0.8 + 0.45 * sunPull)
+            let phase = t * (0.23 + 0.17 * n1) + CGFloat(index) * 1.13
+            let path = wavePath(
+                startX: x - length,
+                endX: x + length,
+                y: y,
+                amplitude: 2.5 + 7.0 * depth,
+                phase: phase,
+                segments: 3
+            )
+
+            context.stroke(
+                path,
+                with: .color(Color.white.opacity((0.035 + 0.06 * Double(breath)) * Double(0.35 + 0.65 * n0))),
+                style: StrokeStyle(lineWidth: 0.7 + 0.8 * n2, lineCap: .round, lineJoin: .round)
+            )
+        }
+    }
+
+    private static func wavePath(
+        startX: CGFloat,
+        endX: CGFloat,
+        y: CGFloat,
+        amplitude: CGFloat,
+        phase: CGFloat,
+        segments: Int
+    ) -> Path {
+        var path = Path()
+        let segmentCount = max(1, segments)
+        let width = endX - startX
+        var current = CGPoint(x: startX, y: y + sin(phase) * amplitude)
+
+        path.move(to: current)
+
+        for segment in 0..<segmentCount {
+            let startProgress = CGFloat(segment) / CGFloat(segmentCount)
+            let endProgress = CGFloat(segment + 1) / CGFloat(segmentCount)
+            let midProgress = (startProgress + endProgress) * 0.5
+            let next = CGPoint(
+                x: startX + width * endProgress,
+                y: y + sin(phase + endProgress * .pi * 2) * amplitude
+            )
+            let controlY = y + sin(phase + midProgress * .pi * 2) * amplitude * 1.35
+            let control1 = CGPoint(
+                x: current.x + width / CGFloat(segmentCount) * 0.34,
+                y: current.y
+            )
+            let control2 = CGPoint(
+                x: startX + width * (endProgress - 0.34 / CGFloat(segmentCount)),
+                y: controlY
+            )
+
+            path.addCurve(to: next, control1: control1, control2: control2)
+            current = next
+        }
+
+        return path
     }
 
     private static func drawSoftParticles(
