@@ -24,20 +24,20 @@ enum MeditationRenderer {
         let phaseEase = CGFloat(BreathingTimeline.smoothstep(snapshot.phaseProgress))
         let inhaleDrive = (snapshot.isInhale ? phaseEase : 1 - phaseEase) * motionScale
         let slowPhase = CGFloat(time) * (2 * .pi / 150)
-        let strandCount = reduceMotion ? 9 : 11
-        let sampleCount = reduceMotion ? 80 : 108
-        let bundleHalfWidth = min(width, height) * (0.030 + 0.010 * breath) * motionScale
+        let strandCount = reduceMotion ? 10 : 13
+        let sampleCount = reduceMotion ? 84 : 112
+        let bundleHalfWidth = min(width, height) * (0.027 + 0.010 * breath) * motionScale
         var strings: [LightString] = []
 
         func centerPoint(progress: CGFloat, phase: CGFloat) -> CGPoint {
             let envelope = pow(max(0, sin(progress * .pi)), 0.72)
-            let x = width * (-0.040 + 1.095 * progress)
+            let x = width * (0.065 + 0.870 * progress)
             let y = height * (
-                0.570
-                - 0.255 * progress
-                + 0.150 * envelope * sin(2 * .pi * (progress - 0.10) + phase * 0.085)
-                + 0.018 * envelope * sin(4 * .pi * progress - phase * 0.05)
-                - 0.012 * breath * motionScale
+                0.558
+                - 0.208 * progress
+                + 0.136 * envelope * sin(2 * .pi * (progress - 0.10) + phase * 0.085)
+                + 0.014 * envelope * sin(4 * .pi * progress - phase * 0.05)
+                - 0.008 * breath * motionScale
             )
             return CGPoint(x: x, y: y)
         }
@@ -81,16 +81,19 @@ enum MeditationRenderer {
             let localCycle = wrappedUnit(snapshot.cycleProgress + Double(lane) * 0.012 + Double(seed - 0.5) * 0.018)
             let localBreath = CGFloat(breathAmount(atCycleProgress: localCycle))
             let phase = slowPhase + lane * 0.08 + (seed - 0.5) * 0.08
+            let startProgress = 0.014 + 0.010 * laneAbs + 0.004 * seed
+            let endProgress = 0.986 - 0.012 * laneAbs - 0.003 * seed
             var spine: [CGPoint] = []
 
             for sample in 0...sampleCount {
-                let progress = CGFloat(sample) / CGFloat(sampleCount)
+                let sampleProgress = CGFloat(sample) / CGFloat(sampleCount)
+                let progress = startProgress + (endProgress - startProgress) * sampleProgress
                 spine.append(strandPoint(progress: progress, lane: lane, seed: seed, phase: phase))
             }
 
             let centerWeight = 1 - laneAbs
             let color = lightStringColor(index: strand, seed: seed, breath: localBreath)
-            let accentMultiplier: Double = strand == strandCount - 2 ? 0.62 : 1
+            let accentMultiplier: Double = strand == strandCount - 4 ? 0.58 : 1
             let coreOpacity = (0.24 + 0.34 * Double(centerWeight) + 0.05 * Double(seed))
                 * Double(0.92 + 0.12 * localBreath)
                 * accentMultiplier
@@ -102,8 +105,8 @@ enum MeditationRenderer {
                 LightString(
                     path: smoothPath(through: spine),
                     color: color,
-                    glowWidth: (6.8 + 8.0 * centerWeight + 2.0 * seed) * (0.95 + 0.10 * localBreath),
-                    coreWidth: (0.58 + 0.98 * centerWeight + 0.22 * seed) * (0.95 + 0.08 * localBreath),
+                    glowWidth: (6.2 + 7.4 * centerWeight + 2.0 * seed) * (0.95 + 0.10 * localBreath),
+                    coreWidth: (0.50 + 0.86 * centerWeight + 0.20 * seed) * (0.95 + 0.08 * localBreath),
                     glowOpacity: glowOpacity,
                     coreOpacity: coreOpacity
                 )
@@ -907,9 +910,11 @@ enum MeditationRenderer {
             return Color(red: 0.44 + warmth * 0.40, green: 0.86 + warmth * 0.35 + jitter, blue: 1.0)
         case 2, 7, 12:
             return Color(red: 0.76 + warmth + jitter, green: 0.95 + warmth * 0.35, blue: 1.0)
-        case 4, 9, 13:
+        case 4, 13:
             return Color(red: 0.45 + warmth * 0.20, green: 0.40 + warmth * 0.18 + jitter, blue: 1.0)
         case 5:
+            return Color(red: 0.84 + warmth + jitter, green: 0.98 + warmth * 0.30, blue: 1.0)
+        case 9:
             return Color(red: 1.0, green: 0.24 + warmth * 0.24, blue: 0.78 + jitter)
         case 15:
             return Color(red: 1.0, green: 0.72 + warmth * 0.35 + jitter, blue: 0.30 + warmth * 0.18)
