@@ -44,7 +44,7 @@ private struct BreathWave: View {
 
             for step in 0...80 {
                 let x = width * CGFloat(step) / 80
-                let angle = Double(x / width) * 2 * Double.pi
+                let angle = Double(x / width) * 2 * Double.pi - Double.pi / 2
                 let y = midY - CGFloat(sin(angle)) * amplitude
                 wave.addLine(to: CGPoint(x: x, y: y))
             }
@@ -60,7 +60,7 @@ private struct BreathWave: View {
 
             for step in 0...80 {
                 let x = min(progressX, width * CGFloat(step) / 80)
-                let angle = Double(x / width) * 2 * Double.pi
+                let angle = Double(x / width) * 2 * Double.pi - Double.pi / 2
                 let y = midY - CGFloat(sin(angle)) * amplitude
                 active.addLine(to: CGPoint(x: x, y: y))
 
@@ -75,8 +75,10 @@ private struct BreathWave: View {
                 style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round)
             )
 
+            let dotAngle = snapshot.cycleProgress * 2 * Double.pi - Double.pi / 2
+            let dotY = midY - CGFloat(sin(dotAngle)) * amplitude
             context.fill(
-                Path(ellipseIn: CGRect(x: progressX - 3, y: midY - 3 - CGFloat(snapshot.sine) * amplitude, width: 6, height: 6)),
+                Path(ellipseIn: CGRect(x: progressX - 3, y: dotY - 3, width: 6, height: 6)),
                 with: .color(.white.opacity(0.86))
             )
         }

@@ -20,15 +20,13 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let motionScale: CGFloat = reduceMotion ? 0.35 : 1
-        let breath = CGFloat(snapshot.breathAmount)
+        let globalBreath = CGFloat(snapshot.breathAmount)
         let phaseEase = CGFloat(BreathingTimeline.smoothstep(snapshot.phaseProgress))
-        let inhaleDrive = snapshot.isInhale ? phaseEase : 0
-        let exhaleSettle = snapshot.isInhale ? 0 : phaseEase
-        let energy = (snapshot.isInhale ? 0.20 + 0.62 * inhaleDrive : 0.12 + 0.20 * breath * (1 - exhaleSettle)) * motionScale
-        let spread = 0.28 + 0.82 * breath * motionScale
-        let centerY = height * (0.55 - 0.006 * breath * motionScale)
-        let sampleCount = reduceMotion ? 42 : 64
-        let stringCount = reduceMotion ? 6 : 9
+        let inhaleLift = (snapshot.isInhale ? phaseEase : 1 - phaseEase) * motionScale
+        let energy = (0.72 + 0.16 * inhaleLift) * motionScale
+        let centerY = height * (0.53 - 0.010 * globalBreath * motionScale)
+        let sampleCount = reduceMotion ? 44 : 68
+        let stringCount = reduceMotion ? 6 : 8
         var strings: [LightString] = []
 
         for layer in 0..<stringCount {
@@ -38,87 +36,115 @@ enum MeditationRenderer {
             let n1 = pseudoNoise(seed + 11)
             let n2 = pseudoNoise(seed + 23)
             let n3 = pseudoNoise(seed + 41)
-            let baseSpeed = 0.0012 + 0.0060 * energy
-            let phase = CGFloat(time) * baseSpeed * (0.68 + 0.72 * n0) + i * 1.91 + n3 * 2.4
-            let counterPhase = CGFloat(time) * baseSpeed * (0.36 + 0.52 * n2) + i * 2.47 + n1 * 1.3
+            let localCycle = wrappedUnit(snapshot.cycleProgress + Double(n0 - 0.5) * 0.055 + Double(layer % 3 - 1) * 0.018)
+            let breath = CGFloat(breathAmount(atCycleProgress: localCycle))
+            let lane = (i - CGFloat(stringCount - 1) * 0.5) / max(1, CGFloat(stringCount - 1) * 0.5)
+            let family = layer % 3
+            let depth = 0.40 + 0.58 * n0
+            let depthScale = 0.74 + 0.36 * depth
+            let spread = (0.84 + 0.17 * breath) * motionScale
+            let basePeriod = CGFloat(48 + 54 * n1)
+            let slowPhase = CGFloat(time) * (2 * .pi / basePeriod) * (0.72 + 0.24 * breath) + i * 1.37 + n2 * 4.2
+            let counterPhase = CGFloat(time) * (2 * .pi / CGFloat(70 + 62 * n2)) + i * 2.11 + n3 * 5.4
+            let shimmerPhase = CGFloat(time) * (2 * .pi / CGFloat(16 + 14 * n3)) + i * 0.73
+            let direction: CGFloat = family == 1 ? -1 : 1
+            let bandSpacing = height * (0.050 + 0.012 * n1) * spread
+            let baseOffset = lane * bandSpacing * CGFloat(stringCount - 1) * 0.56
+                + (n2 - 0.5) * height * 0.036
+            let diagonal = direction * height * (0.070 + 0.042 * n3)
             let horizontalDrift = width * (
-                (0.018 + 0.070 * spread) * sin(phase * 0.52 + i)
-                + (0.012 + 0.030 * energy) * sin(counterPhase + 1.7)
-                + 0.010 * cos(CGFloat(time) * 0.0012 + i * 3.4)
-            )
-            let baseOffset = (i - CGFloat(stringCount - 1) * 0.5) * (height * (0.018 + 0.034 * spread) + 3 * n1)
-                + (n2 - 0.5) * height * 0.042 * spread
-            let amplitudeA = height * (0.030 + 0.046 * n1) * spread
-            let amplitudeB = height * (0.010 + 0.023 * n2) * (0.58 + 0.55 * energy)
-            let amplitudeC = height * (0.004 + 0.009 * n3) * (0.38 + 0.62 * energy)
+                0.018 * sin(slowPhase * 0.45 + n1 * 5.0)
+                + 0.010 * cos(counterPhase * 0.62 + i)
+            ) * motionScale
+            let amplitudeA = height * (0.030 + 0.025 * n1) * (0.86 + 0.16 * breath) * depthScale
+            let amplitudeB = height * (0.007 + 0.010 * n2) * (0.82 + 0.12 * breath)
+            let amplitudeC = height * (0.002 + 0.005 * n3) * energy
             var spine: [CGPoint] = []
 
             for sample in 0...sampleCount {
                 let progress = CGFloat(sample) / CGFloat(sampleCount)
-                let envelope = sin(progress * .pi)
+                let envelope = pow(max(0, sin(progress * .pi)), 0.72)
+                let edgeFade = min(1, max(0, min(progress, 1 - progress) / 0.10))
                 let flow = progress * 2 * .pi
-                let xCurl = width * (0.010 + 0.025 * energy) * envelope * sin(flow * (1.06 + 0.22 * n3) - phase * 0.64 + i)
-                let x = width * (-0.22 + 1.44 * progress) + horizontalDrift + xCurl
-                let primary = sin(flow * (0.82 + 0.22 * n0) + phase)
-                let secondary = sin(flow * (1.36 + 0.28 * n2) - counterPhase * 0.56 + i * 0.8)
-                let tertiary = sin(flow * (2.35 + 0.25 * n3) + phase * 1.1 + i * 1.5)
-                let inhaleCurl = inhaleDrive * height * 0.020 * envelope * sin(flow + phase * 0.24 + i * 0.7)
+                let perspective = (progress - 0.5) * width * (0.022 + 0.035 * depth)
+                let xCurl = width * (0.004 + 0.012 * breath) * envelope * sin(flow * (0.72 + 0.18 * n3) - slowPhase * 0.34 + i)
+                let x = width * (-0.18 + 1.36 * progress)
+                    + horizontalDrift
+                    + perspective
+                    + xCurl
+                let primary = sin(flow * (0.58 + 0.20 * n0) + slowPhase)
+                let secondary = sin(flow * (1.18 + 0.28 * n2) - counterPhase * 0.52 + i * 0.53)
+                let tertiary = sin(flow * (2.05 + 0.18 * n3) + shimmerPhase + i * 1.2)
                 let rawY = centerY
                     + baseOffset
-                    + envelope * amplitudeA * primary
-                    + amplitudeB * secondary
-                    + amplitudeC * tertiary
-                    + inhaleCurl
-                let focusPull = (1 - breath) * 0.34
+                    + diagonal * (progress - 0.5)
+                    + edgeFade * envelope * amplitudeA * primary
+                    + edgeFade * amplitudeB * secondary
+                    + edgeFade * amplitudeC * tertiary
+                let focusPull = (1 - breath) * (0.13 + 0.05 * n1)
                 let y = rawY + (centerY - rawY) * focusPull
 
                 spine.append(CGPoint(x: x, y: y))
             }
 
+            let accentMultiplier: Double = family == 2 ? 0.72 : 1
+            let depthOpacity = Double(0.58 + 0.42 * depth)
+            let breathOpacity = Double(0.94 + 0.10 * breath)
+
             strings.append(
                 LightString(
                     path: smoothPath(through: spine),
                     color: lightStringColor(index: layer, seed: n0, breath: breath),
-                    glowWidth: 30 + 24 * n1 + 20 * spread,
-                    coreWidth: 0.75 + 1.35 * n3,
-                    glowOpacity: 0.075 + 0.048 * Double(breath) + 0.040 * Double(energy) + 0.020 * Double(n2),
-                    coreOpacity: 0.050 + 0.040 * Double(breath) + 0.045 * Double(energy) + 0.012 * Double(n0)
+                    glowWidth: (8.5 + 7.5 * n1) * depthScale,
+                    coreWidth: (0.85 + 0.70 * n3) * depthScale,
+                    glowOpacity: (0.020 + 0.020 * Double(n2)) * depthOpacity * breathOpacity * accentMultiplier,
+                    coreOpacity: (0.22 + 0.20 * Double(n0)) * depthOpacity * breathOpacity * accentMultiplier
                 )
             )
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 30 + 12 * breath))
+            layerContext.addFilter(.blur(radius: 14 + 3 * globalBreath))
 
             for string in strings {
                 layerContext.stroke(
                     string.path,
-                    with: .color(string.color.opacity(string.glowOpacity * 0.82)),
-                    style: StrokeStyle(lineWidth: string.glowWidth * 2.0, lineCap: .round, lineJoin: .round)
+                    with: .color(string.color.opacity(string.glowOpacity * 0.72)),
+                    style: StrokeStyle(lineWidth: string.glowWidth * 1.65, lineCap: .round, lineJoin: .round)
                 )
             }
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 12 + 5.5 * breath))
+            layerContext.addFilter(.blur(radius: 4.8 + 1.2 * globalBreath))
 
             for string in strings {
                 layerContext.stroke(
                     string.path,
-                    with: .color(string.color.opacity(string.glowOpacity)),
-                    style: StrokeStyle(lineWidth: string.glowWidth * 0.72, lineCap: .round, lineJoin: .round)
+                    with: .color(string.color.opacity(string.glowOpacity * 1.55)),
+                    style: StrokeStyle(lineWidth: string.glowWidth * 0.56, lineCap: .round, lineJoin: .round)
                 )
             }
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 4.2))
+            layerContext.addFilter(.blur(radius: 0.65))
 
             for string in strings {
                 layerContext.stroke(
                     string.path,
                     with: .color(string.color.opacity(string.coreOpacity)),
-                    style: StrokeStyle(lineWidth: string.coreWidth * 4.5, lineCap: .round, lineJoin: .round)
+                    style: StrokeStyle(lineWidth: string.coreWidth, lineCap: .round, lineJoin: .round)
+                )
+            }
+        }
+
+        context.drawLayer { layerContext in
+            for (index, string) in strings.enumerated() where index % 3 != 2 {
+                layerContext.stroke(
+                    string.path,
+                    with: .color(Color.white.opacity(string.coreOpacity * 0.18)),
+                    style: StrokeStyle(lineWidth: max(0.45, string.coreWidth * 0.38), lineCap: .round, lineJoin: .round)
                 )
             }
         }
@@ -126,12 +152,12 @@ enum MeditationRenderer {
         drawSoftParticles(
             in: &context,
             size: size,
-            count: reduceMotion ? 14 : 42,
+            count: reduceMotion ? 10 : 28,
             centerY: centerY,
-            breath: breath,
+            breath: globalBreath,
             energy: energy,
             time: time,
-            color: Color(red: 0.74, green: 0.9, blue: 1.0)
+            color: Color(red: 0.72, green: 0.93, blue: 1.0)
         )
     }
 
@@ -726,17 +752,17 @@ enum MeditationRenderer {
         let height = size.height
 
         context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 1.5 + 2.3 * breath))
+            layer.addFilter(.blur(radius: 0.8 + 1.1 * breath))
 
             for index in 0..<count {
                 let noise = pseudoNoise(index)
                 let n1 = pseudoNoise(index + 8)
                 let n2 = pseudoNoise(index + 13)
-                let phase = CGFloat(time) * (0.0020 + 0.0065 * energy + 0.0020 * n1) + CGFloat(index) * 1.7
-                let x = width * CGFloat(noise) + width * (0.010 + 0.022 * energy) * sin(phase * 0.7)
-                let y = centerY + sin(phase) * (height * (0.018 + 0.046 * breath))
-                let radius = CGFloat(0.70 + 1.75 * n2) * (0.80 + 0.45 * breath)
-                let opacity = 0.14 + 0.18 * Double(energy) * Double(0.45 + pseudoNoise(index + 5))
+                let phase = CGFloat(time) * (2 * .pi / CGFloat(28 + 24 * n1)) + CGFloat(index) * 1.7
+                let x = width * CGFloat(noise) + width * (0.004 + 0.010 * energy) * sin(phase * 0.7)
+                let y = centerY + sin(phase) * (height * (0.014 + 0.030 * breath))
+                let radius = CGFloat(0.35 + 0.72 * n2) * (0.86 + 0.24 * breath)
+                let opacity = 0.08 + 0.11 * Double(energy) * Double(0.45 + pseudoNoise(index + 5))
 
                 layer.fill(
                     Path(ellipseIn: CGRect(
@@ -816,20 +842,35 @@ enum MeditationRenderer {
         )
     }
 
-    private static func lightStringColor(index: Int, seed: CGFloat, breath: CGFloat) -> Color {
-        let palette = index % 4
-        let warmth = Double(breath) * 0.08
-        let jitter = Double(seed - 0.5) * 0.035
+    private static func wrappedUnit(_ value: Double) -> Double {
+        let wrapped = value - floor(value)
+        return wrapped < 0 ? wrapped + 1 : wrapped
+    }
 
-        switch palette {
+    private static func breathAmount(atCycleProgress progress: Double) -> Double {
+        let wrapped = wrappedUnit(progress)
+        let phaseProgress = wrapped < 0.5 ? wrapped * 2 : (wrapped - 0.5) * 2
+        let eased = BreathingTimeline.smoothstep(phaseProgress)
+        return wrapped < 0.5 ? eased : 1 - eased
+    }
+
+    private static func lightStringColor(index: Int, seed: CGFloat, breath: CGFloat) -> Color {
+        let warmth = Double(breath) * 0.035
+        let jitter = Double(seed - 0.5) * 0.018
+
+        switch index % 8 {
         case 0:
-            return Color(red: 0.30 + warmth + jitter, green: 0.82 + warmth * 0.45, blue: 1.0)
-        case 1:
-            return Color(red: 0.58 + warmth * 0.35, green: 0.44 + warmth * 0.32 + jitter, blue: 1.0)
+            return Color(red: 0.72 + warmth + jitter, green: 0.93 + warmth * 0.45, blue: 1.0)
+        case 1, 5:
+            return Color(red: 0.41 + warmth * 0.35, green: 0.78 + warmth * 0.36 + jitter, blue: 0.86)
         case 2:
-            return Color(red: 1.0, green: 0.52 + warmth + jitter, blue: 0.36 + warmth * 0.50)
+            return Color(red: 0.64 + warmth * 0.24, green: 0.70 + warmth * 0.20, blue: 1.0)
+        case 3, 6:
+            return Color(red: 0.28 + warmth * 0.20, green: 0.64 + warmth * 0.32, blue: 0.76 + jitter)
+        case 4:
+            return Color(red: 0.86 + warmth, green: 0.91 + warmth * 0.40, blue: 1.0)
         default:
-            return Color(red: 0.34 + warmth * 0.38, green: 0.96, blue: 0.72 + jitter)
+            return Color(red: 1.0, green: 0.76 + warmth * 0.45 + jitter, blue: 0.48 + warmth * 0.18)
         }
     }
 

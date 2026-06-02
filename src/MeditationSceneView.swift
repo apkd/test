@@ -180,11 +180,11 @@ private struct AmbientBackground: View {
     private func baseColors(breathAmount: CGFloat) -> [Color] {
         switch mode {
         case .silkRibbon:
-            let warmth = Double(BreathingTimeline.smoothstep(Double(breathAmount))) * 0.58
+            let warmth = Double(BreathingTimeline.smoothstep(Double(breathAmount))) * 0.42
             return [
-                Self.color(red: 0.035, green: 0.045, blue: 0.09, warmRed: 0.11, warmGreen: 0.060, warmBlue: 0.085, amount: warmth),
-                Self.color(red: 0.08, green: 0.13, blue: 0.24, warmRed: 0.24, warmGreen: 0.145, warmBlue: 0.21, amount: warmth),
-                Self.color(red: 0.02, green: 0.025, blue: 0.055, warmRed: 0.075, warmGreen: 0.040, warmBlue: 0.065, amount: warmth),
+                Self.color(red: 0.018, green: 0.026, blue: 0.055, warmRed: 0.055, warmGreen: 0.032, warmBlue: 0.060, amount: warmth),
+                Self.color(red: 0.030, green: 0.070, blue: 0.130, warmRed: 0.115, warmGreen: 0.075, warmBlue: 0.130, amount: warmth),
+                Self.color(red: 0.006, green: 0.010, blue: 0.026, warmRed: 0.030, warmGreen: 0.018, warmBlue: 0.034, amount: warmth),
             ]
         case .breathingHorizon:
             return [
