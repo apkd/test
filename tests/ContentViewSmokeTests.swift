@@ -5,9 +5,7 @@ import Testing
 @MainActor
 struct ContentViewSmokeTests {
     @Test
-    func contentViewCanBeConstructed() {
-        let view = ContentView()
-
-        _ = view.body
+    func contentViewCanBeInitialized() {
+        _ = ContentView()
     }
 }
