@@ -28,11 +28,10 @@ enum MeditationRenderer {
         let sampleCount = reduceMotion ? 80 : 108
         let bundleHalfWidth = min(width, height) * (0.030 + 0.010 * breath) * motionScale
         var strings: [LightString] = []
-        var branchStrings: [LightString] = []
 
         func centerPoint(progress: CGFloat, phase: CGFloat) -> CGPoint {
             let envelope = pow(max(0, sin(progress * .pi)), 0.72)
-            let x = width * (0.095 + 0.815 * progress)
+            let x = width * (-0.040 + 1.095 * progress)
             let y = height * (
                 0.570
                 - 0.255 * progress
@@ -111,41 +110,6 @@ enum MeditationRenderer {
             )
         }
 
-        let branchCount = reduceMotion ? 2 : 3
-        for branch in 0..<branchCount {
-            let seed = pseudoNoise(branch * 61 + 7)
-            let branchOffset = CGFloat(branch - 1) * min(width, height) * 0.006
-            let color = branch == 1
-                ? Color(red: 0.35, green: 0.82, blue: 1.0)
-                : Color(red: 0.16, green: 0.56, blue: 1.0)
-            var points: [CGPoint] = []
-
-            for sample in 0...70 {
-                let progress = CGFloat(sample) / 70
-                let theta = (34 + 292 * progress) * .pi / 180
-                let radiusFalloff = 1 - 0.24 * progress
-                let cx = width * (0.245 + 0.006 * sin(slowPhase + seed))
-                let cy = height * (0.582 + 0.010 * cos(slowPhase * 0.7 + seed))
-                let rx = width * 0.083 + branchOffset
-                let ry = height * 0.052 + branchOffset * 0.64
-                points.append(CGPoint(
-                    x: cx + rx * radiusFalloff * cos(theta),
-                    y: cy + ry * radiusFalloff * sin(theta)
-                ))
-            }
-
-            branchStrings.append(
-                LightString(
-                    path: smoothPath(through: points),
-                    color: color,
-                    glowWidth: 7.0 + 2.0 * seed,
-                    coreWidth: 0.55 + 0.25 * seed,
-                    glowOpacity: 0.018 + 0.008 * Double(inhaleDrive),
-                    coreOpacity: 0.20 + 0.07 * Double(inhaleDrive)
-                )
-            )
-        }
-
         context.drawLayer { layerContext in
             layerContext.addFilter(.blur(radius: 18))
             layerContext.fill(
@@ -170,7 +134,7 @@ enum MeditationRenderer {
 
         context.drawLayer { layerContext in
             layerContext.addFilter(.blur(radius: 12 + 1.5 * breath))
-            for string in branchStrings + strings {
+            for string in strings {
                 layerContext.stroke(
                     string.path,
                     with: .color(string.color.opacity(string.glowOpacity * 0.82)),
@@ -181,7 +145,7 @@ enum MeditationRenderer {
 
         context.drawLayer { layerContext in
             layerContext.addFilter(.blur(radius: 2.6 + 0.6 * breath))
-            for string in branchStrings + strings {
+            for string in strings {
                 layerContext.stroke(
                     string.path,
                     with: .color(string.color.opacity(string.glowOpacity * 1.92)),
@@ -192,7 +156,7 @@ enum MeditationRenderer {
 
         context.drawLayer { layerContext in
             layerContext.addFilter(.blur(radius: 0.16))
-            for string in branchStrings + strings {
+            for string in strings {
                 layerContext.stroke(
                     string.path,
                     with: .color(string.color.opacity(string.coreOpacity)),
