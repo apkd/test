@@ -19,218 +19,180 @@ enum MeditationRenderer {
     ) {
         let width = size.width
         let height = size.height
-        let motionScale: CGFloat = reduceMotion ? 0.32 : 1
+        let motionScale: CGFloat = reduceMotion ? 0.35 : 1
         let breath = CGFloat(snapshot.breathAmount)
         let phaseEase = CGFloat(BreathingTimeline.smoothstep(snapshot.phaseProgress))
         let inhaleDrive = (snapshot.isInhale ? phaseEase : 1 - phaseEase) * motionScale
-        let centerY = height * (0.485 - 0.010 * breath * motionScale)
-        let surfaceY = height * 0.655
-        let strandCount = reduceMotion ? 12 : 18
-        let sampleCount = reduceMotion ? 64 : 92
-        let globalPhase = CGFloat(time) * (2 * .pi / 150) + CGFloat(snapshot.cycleProgress) * 0.10
-        let spreadBase = height * (0.017 + 0.012 * breath) * motionScale
+        let slowPhase = CGFloat(time) * (2 * .pi / 150)
+        let strandCount = reduceMotion ? 9 : 11
+        let sampleCount = reduceMotion ? 80 : 108
+        let bundleHalfWidth = min(width, height) * (0.030 + 0.010 * breath) * motionScale
         var strings: [LightString] = []
-        var reflections: [LightString] = []
-        var sparks: [(point: CGPoint, radius: CGFloat, opacity: Double, color: Color)] = []
+        var branchStrings: [LightString] = []
 
-        func loopEnvelope(_ progress: CGFloat, start: CGFloat, end: CGFloat) -> CGFloat {
-            guard progress > start, progress < end else {
-                return 0
-            }
-
-            let local = (progress - start) / (end - start)
-            return pow(max(0, sin(local * .pi)), 0.86)
-        }
-
-        func basePoint(progress: CGFloat, phase: CGFloat, breath: CGFloat) -> CGPoint {
-            let flow = progress * 2 * .pi
-            let primary = sin(flow * 1.08 - 0.82 + phase * 0.16)
-            let secondary = sin(flow * 2.18 + 1.45 - phase * 0.10)
-            let longSweep = height * 0.055 * (0.5 - progress)
-            var x = width * (-0.175 + 1.350 * progress)
-            var y = centerY
-                + longSweep
-                + height * (0.082 * primary + 0.024 * secondary) * (0.88 + 0.14 * breath)
-                - height * 0.030 * sin(progress * .pi) * (0.70 + 0.30 * breath)
-
-            let loopStart: CGFloat = 0.130
-            let loopEnd: CGFloat = 0.430
-            let loop = loopEnvelope(progress, start: loopStart, end: loopEnd)
-            if loop > 0 {
-                let local = (progress - loopStart) / (loopEnd - loopStart)
-                let angle = local * 2 * .pi + 0.56 + phase * 0.035
-                x += width * (0.185 + 0.016 * breath) * loop * cos(angle)
-                y += height * (0.108 + 0.010 * breath) * loop * sin(angle)
-            }
-
-            let crest = loopEnvelope(progress, start: 0.540, end: 0.980)
-            y -= height * (0.072 + 0.012 * breath) * crest
-
+        func centerPoint(progress: CGFloat, phase: CGFloat) -> CGPoint {
+            let envelope = pow(max(0, sin(progress * .pi)), 0.72)
+            let x = width * (0.095 + 0.815 * progress)
+            let y = height * (
+                0.570
+                - 0.255 * progress
+                + 0.150 * envelope * sin(2 * .pi * (progress - 0.10) + phase * 0.085)
+                + 0.018 * envelope * sin(4 * .pi * progress - phase * 0.05)
+                - 0.012 * breath * motionScale
+            )
             return CGPoint(x: x, y: y)
         }
 
-        func normalAt(progress: CGFloat, phase: CGFloat, breath: CGFloat) -> CGVector {
+        func tangentNormal(progress: CGFloat, phase: CGFloat) -> (tangent: CGVector, normal: CGVector) {
             let delta: CGFloat = 0.003
-            let previous = basePoint(progress: max(0, progress - delta), phase: phase, breath: breath)
-            let next = basePoint(progress: min(1, progress + delta), phase: phase, breath: breath)
+            let previous = centerPoint(progress: max(0, progress - delta), phase: phase)
+            let next = centerPoint(progress: min(1, progress + delta), phase: phase)
             let dx = next.x - previous.x
             let dy = next.y - previous.y
             let length = max(1, sqrt(dx * dx + dy * dy))
-            return CGVector(dx: -dy / length, dy: dx / length)
+            let tangent = CGVector(dx: dx / length, dy: dy / length)
+            let normal = CGVector(dx: -tangent.dy, dy: tangent.dx)
+            return (tangent, normal)
+        }
+
+        func strandPoint(progress: CGFloat, lane: CGFloat, seed: CGFloat, phase: CGFloat) -> CGPoint {
+            let center = centerPoint(progress: progress, phase: phase)
+            let vectors = tangentNormal(progress: progress, phase: phase)
+            let envelope = 0.66 + 0.34 * pow(max(0, sin(progress * .pi)), 0.76)
+            let flow = progress * 2 * .pi
+            let wiggle = min(width, height) * 0.0024 * (
+                sin(flow * (1.20 + 0.12 * seed) + seed * 5.7 + phase * 0.40)
+                + 0.45 * sin(flow * 2.15 + seed * 9.4 - phase * 0.30)
+            ) * motionScale
+            let perspective = (progress - 0.50) * width * 0.016 * (0.40 + 0.60 * (1 - abs(lane)))
+            let offset = lane * bundleHalfWidth * envelope + wiggle
+            return CGPoint(
+                x: center.x + vectors.normal.dx * offset + vectors.tangent.dx * perspective,
+                y: center.y + vectors.normal.dy * offset + vectors.tangent.dy * perspective
+            )
+        }
+
+        for strand in 0..<strandCount {
+            let index = CGFloat(strand)
+            let midpoint = max(1, CGFloat(strandCount - 1) * 0.5)
+            let rawLane = (index - CGFloat(strandCount - 1) * 0.5) / midpoint
+            let lane = rawLane == 0 ? 0 : (rawLane > 0 ? 1 : -1) * pow(abs(rawLane), 1.08)
+            let laneAbs = abs(lane)
+            let seed = pseudoNoise(strand * 53 + 19)
+            let localCycle = wrappedUnit(snapshot.cycleProgress + Double(lane) * 0.012 + Double(seed - 0.5) * 0.018)
+            let localBreath = CGFloat(breathAmount(atCycleProgress: localCycle))
+            let phase = slowPhase + lane * 0.08 + (seed - 0.5) * 0.08
+            var spine: [CGPoint] = []
+
+            for sample in 0...sampleCount {
+                let progress = CGFloat(sample) / CGFloat(sampleCount)
+                spine.append(strandPoint(progress: progress, lane: lane, seed: seed, phase: phase))
+            }
+
+            let centerWeight = 1 - laneAbs
+            let color = lightStringColor(index: strand, seed: seed, breath: localBreath)
+            let accentMultiplier: Double = strand == strandCount - 2 ? 0.62 : 1
+            let coreOpacity = (0.24 + 0.34 * Double(centerWeight) + 0.05 * Double(seed))
+                * Double(0.92 + 0.12 * localBreath)
+                * accentMultiplier
+            let glowOpacity = (0.020 + 0.034 * Double(centerWeight) + 0.006 * Double(seed))
+                * Double(0.90 + 0.12 * localBreath)
+                * accentMultiplier
+
+            strings.append(
+                LightString(
+                    path: smoothPath(through: spine),
+                    color: color,
+                    glowWidth: (6.8 + 8.0 * centerWeight + 2.0 * seed) * (0.95 + 0.10 * localBreath),
+                    coreWidth: (0.58 + 0.98 * centerWeight + 0.22 * seed) * (0.95 + 0.08 * localBreath),
+                    glowOpacity: glowOpacity,
+                    coreOpacity: coreOpacity
+                )
+            )
+        }
+
+        let branchCount = reduceMotion ? 2 : 3
+        for branch in 0..<branchCount {
+            let seed = pseudoNoise(branch * 61 + 7)
+            let branchOffset = CGFloat(branch - 1) * min(width, height) * 0.006
+            let color = branch == 1
+                ? Color(red: 0.35, green: 0.82, blue: 1.0)
+                : Color(red: 0.16, green: 0.56, blue: 1.0)
+            var points: [CGPoint] = []
+
+            for sample in 0...70 {
+                let progress = CGFloat(sample) / 70
+                let theta = (34 + 292 * progress) * .pi / 180
+                let radiusFalloff = 1 - 0.24 * progress
+                let cx = width * (0.245 + 0.006 * sin(slowPhase + seed))
+                let cy = height * (0.582 + 0.010 * cos(slowPhase * 0.7 + seed))
+                let rx = width * 0.083 + branchOffset
+                let ry = height * 0.052 + branchOffset * 0.64
+                points.append(CGPoint(
+                    x: cx + rx * radiusFalloff * cos(theta),
+                    y: cy + ry * radiusFalloff * sin(theta)
+                ))
+            }
+
+            branchStrings.append(
+                LightString(
+                    path: smoothPath(through: points),
+                    color: color,
+                    glowWidth: 7.0 + 2.0 * seed,
+                    coreWidth: 0.55 + 0.25 * seed,
+                    glowOpacity: 0.018 + 0.008 * Double(inhaleDrive),
+                    coreOpacity: 0.20 + 0.07 * Double(inhaleDrive)
+                )
+            )
         }
 
         context.drawLayer { layerContext in
             layerContext.addFilter(.blur(radius: 18))
             layerContext.fill(
                 Path(ellipseIn: CGRect(
-                    x: width * 0.05,
-                    y: surfaceY - height * 0.040,
-                    width: width * 0.90,
-                    height: height * 0.120
+                    x: width * 0.08,
+                    y: height * 0.510,
+                    width: width * 0.78,
+                    height: height * 0.220
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color(red: 0.05, green: 0.42, blue: 1.0).opacity(0.24 + 0.08 * Double(breath)),
-                        Color(red: 0.10, green: 0.20, blue: 0.70).opacity(0.10),
+                        Color(red: 0.02, green: 0.22, blue: 0.72).opacity(0.12 + 0.04 * Double(breath)),
+                        Color(red: 0.00, green: 0.11, blue: 0.35).opacity(0.06),
                         .clear,
                     ]),
-                    center: CGPoint(x: width * 0.48, y: surfaceY),
+                    center: CGPoint(x: width * 0.42, y: height * 0.62),
                     startRadius: 0,
-                    endRadius: width * 0.52
+                    endRadius: width * 0.48
                 )
             )
-        }
-
-        for strand in 0..<strandCount {
-            let index = CGFloat(strand)
-            let mid = max(1, CGFloat(strandCount - 1) * 0.5)
-            let rawLane = (index - CGFloat(strandCount - 1) * 0.5) / mid
-            let lane = rawLane == 0 ? 0 : (rawLane > 0 ? 1 : -1) * pow(abs(rawLane), 1.14)
-            let laneAbs = abs(lane)
-            let seed = strand * 47 + 31
-            let n0 = pseudoNoise(seed)
-            let n1 = pseudoNoise(seed + 13)
-            let n2 = pseudoNoise(seed + 29)
-            let localCycle = wrappedUnit(snapshot.cycleProgress + Double(lane) * 0.012 + Double(n0 - 0.5) * 0.020)
-            let localBreath = CGFloat(breathAmount(atCycleProgress: localCycle))
-            let strandPhase = globalPhase + lane * 0.18 + (n0 - 0.5) * 0.16
-            let depth = 0.54 + 0.42 * (1 - laneAbs) + 0.04 * n1
-            let widthScale = 0.74 + 0.38 * depth
-            let laneSpread = spreadBase * (0.86 + 0.18 * localBreath) * (0.86 + 0.18 * depth)
-            var spine: [CGPoint] = []
-            var reflectionSpine: [CGPoint] = []
-
-            for sample in 0...sampleCount {
-                let progress = CGFloat(sample) / CGFloat(sampleCount)
-                let base = basePoint(progress: progress, phase: strandPhase, breath: localBreath)
-                let normal = normalAt(progress: progress, phase: strandPhase, breath: localBreath)
-                let envelope = pow(max(0, sin(progress * .pi)), 0.70)
-                let flow = progress * 2 * .pi
-                let perspective = (progress - 0.5) * width * (0.014 + 0.020 * depth)
-                let filamentJitter = height * 0.0022 * sin(flow * (2.4 + 0.35 * n1) + strandPhase * 0.7 + lane * 3.2)
-                let offset = lane * laneSpread * (0.40 + 1.12 * envelope) + filamentJitter
-                let point = CGPoint(
-                    x: base.x + normal.dx * offset + perspective + width * 0.0035 * envelope * sin(globalPhase * 0.6 + lane * 2.8 + n2 * 2 * .pi),
-                    y: base.y + normal.dy * offset + height * 0.0045 * envelope * sin(flow * 1.45 - globalPhase * 0.5 + lane * 2.4)
-                )
-                spine.append(point)
-
-                let reflectionFalloff = 0.25 + 0.18 * (1 - laneAbs)
-                reflectionSpine.append(CGPoint(
-                    x: point.x,
-                    y: surfaceY + (surfaceY - point.y) * reflectionFalloff + height * 0.012 * envelope
-                ))
-            }
-
-            let color = lightStringColor(index: strand, seed: n0, breath: localBreath)
-            let accentMultiplier: Double = strand == strandCount / 2 + 3 || strand == strandCount - 2 ? 0.62 : 1
-            let coreAlpha = (0.30 + 0.38 * Double(1 - laneAbs) + 0.08 * Double(n0)) * Double(0.92 + 0.12 * localBreath) * accentMultiplier
-            let glowAlpha = (0.026 + 0.035 * Double(1 - laneAbs) + 0.010 * Double(n1)) * Double(0.92 + 0.12 * localBreath) * accentMultiplier
-            let coreWidth = (0.58 + 1.05 * (1 - laneAbs) + 0.30 * n2) * widthScale
-            let glowWidth = (8.0 + 8.0 * (1 - laneAbs) + 4.0 * n1) * widthScale
-
-            strings.append(
-                LightString(
-                    path: smoothPath(through: spine),
-                    color: color,
-                    glowWidth: glowWidth,
-                    coreWidth: coreWidth,
-                    glowOpacity: glowAlpha,
-                    coreOpacity: coreAlpha
-                )
-            )
-
-            if strand % 2 == 0 || laneAbs < 0.45 {
-                reflections.append(
-                    LightString(
-                        path: smoothPath(through: reflectionSpine),
-                        color: color,
-                        glowWidth: glowWidth * 0.88,
-                        coreWidth: max(0.4, coreWidth * 0.58),
-                        glowOpacity: glowAlpha * 0.34,
-                        coreOpacity: coreAlpha * 0.14
-                    )
-                )
-            }
-        }
-
-        for sparkIndex in 0..<(reduceMotion ? 14 : 28) {
-            let n0 = pseudoNoise(sparkIndex * 17 + 5)
-            let n1 = pseudoNoise(sparkIndex * 17 + 11)
-            let n2 = pseudoNoise(sparkIndex * 17 + 23)
-            let progress = 0.09 + 0.82 * n0
-            let lane = -0.82 + 1.64 * n1
-            let phase = globalPhase + (n2 - 0.5) * 0.2
-            let base = basePoint(progress: progress, phase: phase, breath: breath)
-            let normal = normalAt(progress: progress, phase: phase, breath: breath)
-            let point = CGPoint(
-                x: base.x + normal.dx * lane * spreadBase * 2.2 + width * 0.018 * sin(globalPhase + n1 * 6.2),
-                y: base.y + normal.dy * lane * spreadBase * 2.2 + height * 0.020 * (n2 - 0.5)
-            )
-            sparks.append((
-                point: point,
-                radius: 0.55 + 1.2 * pseudoNoise(sparkIndex * 17 + 41),
-                opacity: 0.18 + 0.20 * Double(1 - abs(lane)) * Double(0.75 + 0.25 * inhaleDrive),
-                color: sparkIndex % 5 == 0 ? Color(red: 1.0, green: 0.35, blue: 0.82) : Color(red: 0.70, green: 0.94, blue: 1.0)
-            ))
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 8.5))
-            for reflection in reflections {
-                layerContext.stroke(
-                    reflection.path,
-                    with: .color(reflection.color.opacity(reflection.glowOpacity)),
-                    style: StrokeStyle(lineWidth: reflection.glowWidth * 1.4, lineCap: .round, lineJoin: .round)
-                )
-            }
-        }
-
-        context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 16 + 2.0 * breath))
-            for string in strings {
+            layerContext.addFilter(.blur(radius: 12 + 1.5 * breath))
+            for string in branchStrings + strings {
                 layerContext.stroke(
                     string.path,
-                    with: .color(string.color.opacity(string.glowOpacity * 0.72)),
-                    style: StrokeStyle(lineWidth: string.glowWidth * 1.95, lineCap: .round, lineJoin: .round)
+                    with: .color(string.color.opacity(string.glowOpacity * 0.82)),
+                    style: StrokeStyle(lineWidth: string.glowWidth * 1.70, lineCap: .round, lineJoin: .round)
                 )
             }
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 4.4 + 0.8 * breath))
-            for string in strings {
+            layerContext.addFilter(.blur(radius: 2.6 + 0.6 * breath))
+            for string in branchStrings + strings {
                 layerContext.stroke(
                     string.path,
-                    with: .color(string.color.opacity(string.glowOpacity * 1.75)),
-                    style: StrokeStyle(lineWidth: string.glowWidth * 0.54, lineCap: .round, lineJoin: .round)
+                    with: .color(string.color.opacity(string.glowOpacity * 1.92)),
+                    style: StrokeStyle(lineWidth: string.glowWidth * 0.44, lineCap: .round, lineJoin: .round)
                 )
             }
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 0.18))
-            for string in strings {
+            layerContext.addFilter(.blur(radius: 0.16))
+            for string in branchStrings + strings {
                 layerContext.stroke(
                     string.path,
                     with: .color(string.color.opacity(string.coreOpacity)),
@@ -240,35 +202,37 @@ enum MeditationRenderer {
         }
 
         context.drawLayer { layerContext in
-            for index in [strandCount / 2 - 3, strandCount / 2, strandCount / 2 + 2] where index >= 0 && index < strings.count {
+            for index in [strandCount / 2 - 1, strandCount / 2, strandCount / 2 + 1] where index >= 0 && index < strings.count {
                 let string = strings[index]
                 layerContext.stroke(
-                    string.path,
-                    with: .color(Color(red: 0.93, green: 0.99, blue: 1.0).opacity(string.coreOpacity * 0.34)),
-                    style: StrokeStyle(lineWidth: max(0.34, string.coreWidth * 0.30), lineCap: .round, lineJoin: .round)
+                    string.path.trimmedPath(from: 0.06, to: 0.96),
+                    with: .color(Color(red: 0.88, green: 0.98, blue: 1.0).opacity(string.coreOpacity * 0.34)),
+                    style: StrokeStyle(lineWidth: max(0.34, string.coreWidth * 0.28), lineCap: .round, lineJoin: .round)
                 )
             }
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 0.45))
-            for spark in sparks {
+            layerContext.addFilter(.blur(radius: 0.55))
+            for sparkIndex in 0..<(reduceMotion ? 10 : 20) {
+                let n0 = pseudoNoise(sparkIndex * 17 + 5)
+                let n1 = pseudoNoise(sparkIndex * 17 + 11)
+                let n2 = pseudoNoise(sparkIndex * 17 + 23)
+                let progress = 0.12 + 0.78 * n0
+                let lane = -0.86 + 1.72 * n1
+                let point = strandPoint(progress: progress, lane: lane, seed: n2, phase: slowPhase + n2 * 0.1)
+                let radius = 0.45 + 0.90 * pseudoNoise(sparkIndex * 17 + 41)
+                let opacity = 0.12 + 0.18 * Double(1 - abs(lane)) * Double(0.78 + 0.22 * inhaleDrive)
+                let color = sparkIndex % 6 == 0
+                    ? Color(red: 1.0, green: 0.22, blue: 0.76)
+                    : Color(red: 0.68, green: 0.94, blue: 1.0)
                 layerContext.fill(
-                    Path(ellipseIn: CGRect(
-                        x: spark.point.x - spark.radius,
-                        y: spark.point.y - spark.radius,
-                        width: spark.radius * 2,
-                        height: spark.radius * 2
-                    )),
+                    Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)),
                     with: .radialGradient(
-                        Gradient(colors: [
-                            spark.color.opacity(spark.opacity),
-                            spark.color.opacity(spark.opacity * 0.28),
-                            .clear,
-                        ]),
-                        center: spark.point,
+                        Gradient(colors: [color.opacity(opacity), color.opacity(opacity * 0.24), .clear]),
+                        center: point,
                         startRadius: 0,
-                        endRadius: spark.radius * 2.4
+                        endRadius: radius * 2.2
                     )
                 )
             }
