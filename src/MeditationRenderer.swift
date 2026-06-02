@@ -23,7 +23,8 @@ enum MeditationRenderer {
         let breath = CGFloat(snapshot.breathAmount)
         let phaseEase = CGFloat(BreathingTimeline.smoothstep(snapshot.phaseProgress))
         let inhaleDrive = (snapshot.isInhale ? phaseEase : 1 - phaseEase) * motionScale
-        let slowPhase = CGFloat(time) * (2 * .pi / 150)
+        let cyclePhase = CGFloat(snapshot.angle)
+        let slowPhase = cyclePhase * 0.72 + CGFloat(time) * (2 * .pi / 28)
         let strandCount = reduceMotion ? 10 : 13
         let sampleCount = reduceMotion ? 84 : 112
         let bundleHalfWidth = min(width, height) * (0.027 + 0.010 * breath) * motionScale
@@ -31,13 +32,19 @@ enum MeditationRenderer {
 
         func centerPoint(progress: CGFloat, phase: CGFloat) -> CGPoint {
             let envelope = pow(max(0, sin(progress * .pi)), 0.72)
-            let x = width * (0.065 + 0.870 * progress)
+            let x = width * (
+                0.065
+                + 0.870 * progress
+                + 0.016 * envelope * sin(progress * .pi + slowPhase * 0.85)
+                + 0.010 * breath * envelope * cos(2 * .pi * progress - slowPhase * 0.72)
+            )
             let y = height * (
                 0.558
                 - 0.208 * progress
-                + 0.136 * envelope * sin(2 * .pi * (progress - 0.10) + phase * 0.085)
-                + 0.014 * envelope * sin(4 * .pi * progress - phase * 0.05)
-                - 0.008 * breath * motionScale
+                + (0.118 + 0.052 * breath) * envelope * sin(2 * .pi * (progress - 0.10) + phase * 0.62)
+                + (0.012 + 0.012 * breath) * envelope * sin(4 * .pi * progress - phase * 0.48)
+                + 0.018 * breath * envelope * sin(3 * .pi * progress + cyclePhase * 0.85)
+                - 0.014 * breath * motionScale
             )
             return CGPoint(x: x, y: y)
         }
@@ -59,15 +66,16 @@ enum MeditationRenderer {
             let vectors = tangentNormal(progress: progress, phase: phase)
             let envelope = 0.66 + 0.34 * pow(max(0, sin(progress * .pi)), 0.76)
             let flow = progress * 2 * .pi
-            let wiggle = min(width, height) * 0.0024 * (
-                sin(flow * (1.20 + 0.12 * seed) + seed * 5.7 + phase * 0.40)
-                + 0.45 * sin(flow * 2.15 + seed * 9.4 - phase * 0.30)
+            let wiggle = min(width, height) * (0.0025 + 0.0020 * breath) * (
+                sin(flow * (1.20 + 0.12 * seed) + seed * 5.7 + phase * 1.12)
+                + 0.45 * sin(flow * 2.15 + seed * 9.4 - phase * 0.82)
             ) * motionScale
             let perspective = (progress - 0.50) * width * 0.016 * (0.40 + 0.60 * (1 - abs(lane)))
-            let offset = lane * bundleHalfWidth * envelope + wiggle
+            let flowSlip = min(width, height) * 0.0060 * envelope * sin(flow * 1.08 - phase * 1.38 + seed * 6.1) * motionScale
+            let offset = lane * bundleHalfWidth * envelope * (0.84 + 0.34 * breath) + wiggle
             return CGPoint(
-                x: center.x + vectors.normal.dx * offset + vectors.tangent.dx * perspective,
-                y: center.y + vectors.normal.dy * offset + vectors.tangent.dy * perspective
+                x: center.x + vectors.normal.dx * offset + vectors.tangent.dx * (perspective + flowSlip),
+                y: center.y + vectors.normal.dy * offset + vectors.tangent.dy * (perspective + flowSlip)
             )
         }
 
@@ -80,7 +88,7 @@ enum MeditationRenderer {
             let seed = pseudoNoise(strand * 53 + 19)
             let localCycle = wrappedUnit(snapshot.cycleProgress + Double(lane) * 0.012 + Double(seed - 0.5) * 0.018)
             let localBreath = CGFloat(breathAmount(atCycleProgress: localCycle))
-            let phase = slowPhase + lane * 0.08 + (seed - 0.5) * 0.08
+            let phase = slowPhase + lane * 0.045 + (seed - 0.5) * 0.045
             let startProgress = 0.014 + 0.010 * laneAbs + 0.004 * seed
             let endProgress = 0.986 - 0.012 * laneAbs - 0.003 * seed
             var spine: [CGPoint] = []
@@ -161,9 +169,19 @@ enum MeditationRenderer {
             layerContext.addFilter(.blur(radius: 0.16))
             for string in strings {
                 layerContext.stroke(
-                    string.path,
+                    string.path.trimmedPath(from: 0.045, to: 0.955),
                     with: .color(string.color.opacity(string.coreOpacity)),
                     style: StrokeStyle(lineWidth: string.coreWidth, lineCap: .round, lineJoin: .round)
+                )
+                layerContext.stroke(
+                    string.path.trimmedPath(from: 0, to: 0.055),
+                    with: .color(string.color.opacity(string.coreOpacity * 0.22)),
+                    style: StrokeStyle(lineWidth: string.coreWidth * 0.82, lineCap: .round, lineJoin: .round)
+                )
+                layerContext.stroke(
+                    string.path.trimmedPath(from: 0.945, to: 1),
+                    with: .color(string.color.opacity(string.coreOpacity * 0.22)),
+                    style: StrokeStyle(lineWidth: string.coreWidth * 0.82, lineCap: .round, lineJoin: .round)
                 )
             }
         }

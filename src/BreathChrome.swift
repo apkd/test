@@ -37,16 +37,20 @@ private struct BreathWave: View {
             let midY = size.height / 2
             let width = size.width
             let amplitude = size.height * 0.36
-            let progressX = width * CGFloat(snapshot.cycleProgress)
+            let progress = min(1, max(0, CGFloat(snapshot.cycleProgress)))
+            let progressX = width * progress
+
+            func waveY(at progress: CGFloat) -> CGFloat {
+                let angle = Double(progress) * 2 * Double.pi - Double.pi / 2
+                return midY - CGFloat(sin(angle)) * amplitude
+            }
 
             var wave = Path()
-            wave.move(to: CGPoint(x: 0, y: midY))
+            wave.move(to: CGPoint(x: 0, y: waveY(at: 0)))
 
-            for step in 0...80 {
-                let x = width * CGFloat(step) / 80
-                let angle = Double(x / width) * 2 * Double.pi - Double.pi / 2
-                let y = midY - CGFloat(sin(angle)) * amplitude
-                wave.addLine(to: CGPoint(x: x, y: y))
+            for step in 1...80 {
+                let sample = CGFloat(step) / 80
+                wave.addLine(to: CGPoint(x: width * sample, y: waveY(at: sample)))
             }
 
             context.stroke(
@@ -56,16 +60,13 @@ private struct BreathWave: View {
             )
 
             var active = Path()
-            active.move(to: CGPoint(x: 0, y: midY))
+            active.move(to: CGPoint(x: 0, y: waveY(at: 0)))
 
-            for step in 0...80 {
-                let x = min(progressX, width * CGFloat(step) / 80)
-                let angle = Double(x / width) * 2 * Double.pi - Double.pi / 2
-                let y = midY - CGFloat(sin(angle)) * amplitude
-                active.addLine(to: CGPoint(x: x, y: y))
-
-                if x >= progressX {
-                    break
+            if progress > 0 {
+                let activeSteps = max(1, Int(ceil(progress * 80)))
+                for step in 1...activeSteps {
+                    let sample = min(progress, CGFloat(step) / 80)
+                    active.addLine(to: CGPoint(x: width * sample, y: waveY(at: sample)))
                 }
             }
 
@@ -75,8 +76,7 @@ private struct BreathWave: View {
                 style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round)
             )
 
-            let dotAngle = snapshot.cycleProgress * 2 * Double.pi - Double.pi / 2
-            let dotY = midY - CGFloat(sin(dotAngle)) * amplitude
+            let dotY = waveY(at: progress)
             context.fill(
                 Path(ellipseIn: CGRect(x: progressX - 3, y: dotY - 3, width: 6, height: 6)),
                 with: .color(.white.opacity(0.86))
