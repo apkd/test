@@ -130,9 +130,9 @@ enum MeditationRenderer {
             let naturalOffset = familyOffset * (0.30 + 0.70 * breathEase)
             let familyNoise = pseudoNoise(familySeed)
             let depth = 0.58 + 0.42 * pseudoNoise(familySeed + 13)
-            let amplitude = 0.048 + 0.030 * pseudoNoise(familySeed + 29) + 0.068 * breathEase
-            let bandWidth = minSide * (0.026 + 0.010 * pseudoNoise(familySeed + 41)) * spread * (0.82 + 0.24 * depth)
-            let familyPhase = cyclePhase * (0.46 + 0.08 * CGFloat(family)) + continuousTime * 0.022 * flowSpeed * (0.82 + 0.42 * familyNoise)
+            let amplitude = 0.060 + 0.026 * pseudoNoise(familySeed + 29) + 0.052 * breathEase
+            let bandWidth = minSide * (0.028 + 0.010 * pseudoNoise(familySeed + 41)) * spread * (0.82 + 0.24 * depth)
+            let familyPhase = cyclePhase * (0.60 + 0.10 * CGFloat(family)) + continuousTime * 0.020 * flowSpeed * (0.82 + 0.42 * familyNoise)
             let rotation = (-0.044 + 0.034 * CGFloat(family)) + 0.014 * signedNoise(cyclePhase * 0.45 + familyNoise * 3.0, seed: familySeed + 71)
 
             func centerPoint(progress rawProgress: CGFloat) -> CGPoint {
@@ -176,7 +176,7 @@ enum MeditationRenderer {
                 let weaveNoise = signedNoise(progress * 3.55 + strandPhase * 0.42 + seed * 4.0, seed: familySeed + 173)
                 let harmonicWeave = sin(flow * (1.48 + seed * 0.28) + strandPhase * 1.05 + seed * 5.4)
                     + 0.42 * sin(flow * (2.36 + seed * 0.22) - strandPhase * 0.72 + seed * 8.3)
-                let localSpread = 0.82 + 0.34 * localBreath
+                let localSpread = 0.88 + 0.28 * localBreath
                 let offset = lane * bandWidth * envelope * localSpread
                     + minSide * (0.0032 + 0.0035 * localBreath) * (0.60 * weaveNoise + 0.40 * harmonicWeave) * motionScale
                 let tangentSlip = minSide * (0.007 + 0.010 * localBreath) * envelope
@@ -217,27 +217,28 @@ enum MeditationRenderer {
 
                 let centerWeight = 1 - laneAbs
                 let frontWeight = 0.70 + 0.30 * depth
+                let sustainedBreath = 0.24 + 0.76 * localBreath
                 let color = paletteColor(family: family, strand: strand, lane: lane, seed: strandSeed, localBreath: localBreath)
-                let isFrontCore = centerWeight > 0.42 || (strand + family) % 7 == 1
+                let isFrontCore = centerWeight > 0.30 || (strand + family) % 7 == 1
                 let pulsePosition = CGFloat(wrappedUnit(
                     snapshot.cycleProgress * Double(0.74 + 0.06 * CGFloat(family))
                         + time * Double(0.026 + 0.020 * breathEase) * Double(0.78 + 0.42 * strandSeed)
                         + Double(strandSeed)
                         + Double(family) * 0.17
                 ))
-                let pulseWidth = 0.030 + 0.016 * strandSeed + 0.010 * localBreath
-                let pulseOpacity = (0.22 + 0.22 * Double(centerWeight)) * Double(0.58 + 0.52 * localBreath) * Double(frontWeight)
+                let pulseWidth = 0.032 + 0.016 * strandSeed + 0.010 * sustainedBreath
+                let pulseOpacity = (0.26 + 0.24 * Double(centerWeight)) * Double(0.50 + 0.50 * sustainedBreath) * Double(frontWeight)
 
                 strings.append(
                     LightString(
                         path: smoothPath(through: spine),
                         color: color,
-                        auraWidth: (13.0 + 16.0 * centerWeight + 5.0 * strandSeed) * (0.90 + 0.18 * localBreath),
-                        bodyWidth: (2.8 + 3.6 * centerWeight + 0.9 * strandSeed) * (0.90 + 0.18 * localBreath),
-                        coreWidth: (0.36 + 0.86 * centerWeight + 0.16 * strandSeed) * (0.90 + 0.14 * localBreath),
+                        auraWidth: (13.5 + 16.0 * centerWeight + 5.0 * strandSeed) * (0.88 + 0.20 * sustainedBreath),
+                        bodyWidth: (3.0 + 3.5 * centerWeight + 0.9 * strandSeed) * (0.88 + 0.18 * sustainedBreath),
+                        coreWidth: (0.34 + 0.78 * centerWeight + 0.14 * strandSeed) * (0.90 + 0.12 * sustainedBreath),
                         auraOpacity: Double(0.018 + 0.018 * centerWeight) * Double(brightness) * Double(frontWeight),
-                        bodyOpacity: Double(0.072 + 0.074 * centerWeight) * Double(brightness) * Double(frontWeight),
-                        coreOpacity: Double(0.095 + 0.205 * centerWeight) * Double(0.88 + 0.20 * localBreath) * Double(frontWeight),
+                        bodyOpacity: Double(0.088 + 0.068 * centerWeight) * Double(brightness) * Double(frontWeight),
+                        coreOpacity: Double(0.075 + 0.185 * centerWeight) * Double(0.88 + 0.18 * sustainedBreath) * Double(frontWeight),
                         pulsePosition: pulsePosition,
                         pulseWidth: pulseWidth,
                         pulseOpacity: pulseOpacity,
