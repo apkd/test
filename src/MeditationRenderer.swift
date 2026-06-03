@@ -30,11 +30,11 @@ enum MeditationRenderer {
         let focus = 1 - breathEase
         let cyclePhase = CGFloat(snapshot.angle)
         let continuousTime = CGFloat(time)
-        let familyCount = reduceMotion ? 3 : 4
-        let strandsPerFamily = reduceMotion ? 6 : 8
-        let sampleCount = reduceMotion ? 50 : 68
+        let familyCount = 3
+        let strandsPerFamily = reduceMotion ? 6 : 9
+        let sampleCount = reduceMotion ? 48 : 62
         let minSide = min(width, height)
-        let spread = (0.58 + 0.74 * breathEase) * motionScale
+        let spread = (0.62 + 0.56 * breathEase) * motionScale
         let brightness = 0.74 + 0.34 * breathEase
         let flowSpeed = 0.36 + 0.72 * breathEase
         var strings: [LightString] = []
@@ -91,10 +91,9 @@ enum MeditationRenderer {
 
         func paletteColor(family: Int, strand: Int, lane: CGFloat, seed: CGFloat, localBreath: CGFloat) -> Color {
             let palettes: [(r: CGFloat, g: CGFloat, b: CGFloat)] = [
-                (0.35, 0.78, 1.00),
-                (0.58, 0.91, 1.00),
-                (0.47, 0.45, 1.00),
-                (0.78, 0.66, 1.00),
+                (0.39, 0.82, 1.00),
+                (0.54, 0.90, 1.00),
+                (0.58, 0.56, 1.00),
             ]
             var base = palettes[family % palettes.count]
             let centerAccent = abs(lane) < 0.18
@@ -104,9 +103,9 @@ enum MeditationRenderer {
 
             if magenta {
                 base = (
-                    mix(base.r, 0.95, amount: 0.34),
-                    mix(base.g, 0.30, amount: 0.22),
-                    mix(base.b, 0.82, amount: 0.16)
+                    mix(base.r, 0.82, amount: 0.22),
+                    mix(base.g, 0.42, amount: 0.16),
+                    mix(base.b, 0.92, amount: 0.12)
                 )
             } else if amber && centerAccent {
                 base = (
@@ -127,14 +126,14 @@ enum MeditationRenderer {
 
         for family in 0..<familyCount {
             let familySeed = family * 239 + 37
-            let familyOffset = (CGFloat(family) - CGFloat(familyCount - 1) * 0.5) * 0.036
-            let naturalOffset = familyOffset * (0.42 + 0.78 * breathEase)
+            let familyOffset = (CGFloat(family) - CGFloat(familyCount - 1) * 0.5) * 0.028
+            let naturalOffset = familyOffset * (0.30 + 0.70 * breathEase)
             let familyNoise = pseudoNoise(familySeed)
             let depth = 0.58 + 0.42 * pseudoNoise(familySeed + 13)
-            let amplitude = 0.074 + 0.048 * pseudoNoise(familySeed + 29) + 0.046 * breathEase
-            let bandWidth = minSide * (0.020 + 0.014 * pseudoNoise(familySeed + 41)) * spread * (0.82 + 0.28 * depth)
-            let familyPhase = cyclePhase * (0.50 + 0.12 * CGFloat(family)) + continuousTime * 0.025 * flowSpeed * (0.82 + 0.42 * familyNoise)
-            let rotation = (-0.075 + 0.050 * CGFloat(family)) + 0.020 * signedNoise(cyclePhase * 0.45 + familyNoise * 3.0, seed: familySeed + 71)
+            let amplitude = 0.048 + 0.030 * pseudoNoise(familySeed + 29) + 0.068 * breathEase
+            let bandWidth = minSide * (0.026 + 0.010 * pseudoNoise(familySeed + 41)) * spread * (0.82 + 0.24 * depth)
+            let familyPhase = cyclePhase * (0.46 + 0.08 * CGFloat(family)) + continuousTime * 0.022 * flowSpeed * (0.82 + 0.42 * familyNoise)
+            let rotation = (-0.044 + 0.034 * CGFloat(family)) + 0.014 * signedNoise(cyclePhase * 0.45 + familyNoise * 3.0, seed: familySeed + 71)
 
             func centerPoint(progress rawProgress: CGFloat) -> CGPoint {
                 let progress = min(1, max(0, rawProgress))
@@ -147,11 +146,11 @@ enum MeditationRenderer {
                 let fine = fbm(t * 3.1 + familyPhase * 0.21 + familyNoise * 5.0, seed: familySeed + 131)
                 let xNoise = 0.012 * envelope * fbm(t * 2.2 - familyPhase * 0.16, seed: familySeed + 151)
                 let x = -0.065 + 1.130 * progress + xNoise + 0.010 * envelope * macro
-                let centerPull = naturalOffset * (0.72 + 0.28 * breathEase) - familyOffset * focus * 0.18
+                let centerPull = naturalOffset * (0.52 + 0.48 * breathEase) - familyOffset * focus * 0.10
                 let y = 0.642
                     - 0.246 * progress
                     + centerPull
-                    + envelope * amplitude * (0.72 * macro + 0.28 * counter + 0.34 * fine)
+                    + envelope * amplitude * (0.64 * macro + 0.26 * counter + 0.30 * fine)
                     - 0.018 * breathEase
 
                 return rotatedPoint(x: x, y: y, angle: rotation)
@@ -177,7 +176,7 @@ enum MeditationRenderer {
                 let weaveNoise = signedNoise(progress * 3.55 + strandPhase * 0.42 + seed * 4.0, seed: familySeed + 173)
                 let harmonicWeave = sin(flow * (1.48 + seed * 0.28) + strandPhase * 1.05 + seed * 5.4)
                     + 0.42 * sin(flow * (2.36 + seed * 0.22) - strandPhase * 0.72 + seed * 8.3)
-                let localSpread = 0.72 + 0.54 * localBreath
+                let localSpread = 0.82 + 0.34 * localBreath
                 let offset = lane * bandWidth * envelope * localSpread
                     + minSide * (0.0032 + 0.0035 * localBreath) * (0.60 * weaveNoise + 0.40 * harmonicWeave) * motionScale
                 let tangentSlip = minSide * (0.007 + 0.010 * localBreath) * envelope
@@ -219,7 +218,7 @@ enum MeditationRenderer {
                 let centerWeight = 1 - laneAbs
                 let frontWeight = 0.70 + 0.30 * depth
                 let color = paletteColor(family: family, strand: strand, lane: lane, seed: strandSeed, localBreath: localBreath)
-                let isFrontCore = centerWeight > 0.20 || (strand + family) % 5 == 1
+                let isFrontCore = centerWeight > 0.42 || (strand + family) % 7 == 1
                 let pulsePosition = CGFloat(wrappedUnit(
                     snapshot.cycleProgress * Double(0.74 + 0.06 * CGFloat(family))
                         + time * Double(0.026 + 0.020 * breathEase) * Double(0.78 + 0.42 * strandSeed)
@@ -233,12 +232,12 @@ enum MeditationRenderer {
                     LightString(
                         path: smoothPath(through: spine),
                         color: color,
-                        auraWidth: (11.0 + 15.0 * centerWeight + 5.0 * strandSeed) * (0.90 + 0.22 * localBreath),
-                        bodyWidth: (2.2 + 3.4 * centerWeight + 1.2 * strandSeed) * (0.88 + 0.22 * localBreath),
-                        coreWidth: (0.42 + 1.05 * centerWeight + 0.20 * strandSeed) * (0.90 + 0.18 * localBreath),
-                        auraOpacity: Double(0.015 + 0.020 * centerWeight) * Double(brightness) * Double(frontWeight),
-                        bodyOpacity: Double(0.060 + 0.090 * centerWeight) * Double(brightness) * Double(frontWeight),
-                        coreOpacity: Double(0.13 + 0.27 * centerWeight) * Double(0.88 + 0.22 * localBreath) * Double(frontWeight),
+                        auraWidth: (13.0 + 16.0 * centerWeight + 5.0 * strandSeed) * (0.90 + 0.18 * localBreath),
+                        bodyWidth: (2.8 + 3.6 * centerWeight + 0.9 * strandSeed) * (0.90 + 0.18 * localBreath),
+                        coreWidth: (0.36 + 0.86 * centerWeight + 0.16 * strandSeed) * (0.90 + 0.14 * localBreath),
+                        auraOpacity: Double(0.018 + 0.018 * centerWeight) * Double(brightness) * Double(frontWeight),
+                        bodyOpacity: Double(0.072 + 0.074 * centerWeight) * Double(brightness) * Double(frontWeight),
+                        coreOpacity: Double(0.095 + 0.205 * centerWeight) * Double(0.88 + 0.20 * localBreath) * Double(frontWeight),
                         pulsePosition: pulsePosition,
                         pulseWidth: pulseWidth,
                         pulseOpacity: pulseOpacity,
