@@ -4,10 +4,16 @@ enum MeditationRenderer {
     private struct LightString {
         let path: Path
         let color: Color
-        let glowWidth: CGFloat
+        let auraWidth: CGFloat
+        let bodyWidth: CGFloat
         let coreWidth: CGFloat
-        let glowOpacity: Double
+        let auraOpacity: Double
+        let bodyOpacity: Double
         let coreOpacity: Double
+        let pulsePosition: CGFloat
+        let pulseWidth: CGFloat
+        let pulseOpacity: Double
+        let isFrontCore: Bool
     }
 
     static func drawSilkRibbon(
@@ -20,154 +26,286 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let motionScale: CGFloat = reduceMotion ? 0.35 : 1
-        let breath = CGFloat(snapshot.breathAmount)
-        let phaseEase = CGFloat(BreathingTimeline.smoothstep(snapshot.phaseProgress))
-        let inhaleDrive = (snapshot.isInhale ? phaseEase : 1 - phaseEase) * motionScale
+        let breathEase = CGFloat(BreathingTimeline.smoothstep(snapshot.breathAmount))
+        let focus = 1 - breathEase
         let cyclePhase = CGFloat(snapshot.angle)
-        let slowPhase = cyclePhase * 0.72 + CGFloat(time) * (2 * .pi / 28)
-        let strandCount = reduceMotion ? 10 : 13
-        let sampleCount = reduceMotion ? 84 : 112
-        let bundleHalfWidth = min(width, height) * (0.027 + 0.010 * breath) * motionScale
+        let continuousTime = CGFloat(time)
+        let familyCount = reduceMotion ? 3 : 4
+        let strandsPerFamily = reduceMotion ? 6 : 8
+        let sampleCount = reduceMotion ? 50 : 68
+        let minSide = min(width, height)
+        let spread = (0.58 + 0.74 * breathEase) * motionScale
+        let brightness = 0.74 + 0.34 * breathEase
+        let flowSpeed = 0.36 + 0.72 * breathEase
         var strings: [LightString] = []
 
-        func centerPoint(progress: CGFloat, phase: CGFloat) -> CGPoint {
-            let envelope = pow(max(0, sin(progress * .pi)), 0.72)
-            let x = width * (
-                0.065
-                + 0.870 * progress
-                + 0.016 * envelope * sin(progress * .pi + slowPhase * 0.85)
-                + 0.010 * breath * envelope * cos(2 * .pi * progress - slowPhase * 0.72)
-            )
-            let y = height * (
-                0.558
-                - 0.208 * progress
-                + (0.118 + 0.052 * breath) * envelope * sin(2 * .pi * (progress - 0.10) + phase * 0.62)
-                + (0.012 + 0.012 * breath) * envelope * sin(4 * .pi * progress - phase * 0.48)
-                + 0.018 * breath * envelope * sin(3 * .pi * progress + cyclePhase * 0.85)
-                - 0.014 * breath * motionScale
-            )
-            return CGPoint(x: x, y: y)
+        func mix(_ a: CGFloat, _ b: CGFloat, amount: CGFloat) -> CGFloat {
+            a + (b - a) * amount
         }
 
-        func tangentNormal(progress: CGFloat, phase: CGFloat) -> (tangent: CGVector, normal: CGVector) {
-            let delta: CGFloat = 0.003
-            let previous = centerPoint(progress: max(0, progress - delta), phase: phase)
-            let next = centerPoint(progress: min(1, progress + delta), phase: phase)
-            let dx = next.x - previous.x
-            let dy = next.y - previous.y
-            let length = max(1, sqrt(dx * dx + dy * dy))
-            let tangent = CGVector(dx: dx / length, dy: dy / length)
-            let normal = CGVector(dx: -tangent.dy, dy: tangent.dx)
-            return (tangent, normal)
+        func smooth(_ value: CGFloat) -> CGFloat {
+            let x = min(1, max(0, value))
+            return x * x * (3 - 2 * x)
         }
 
-        func strandPoint(progress: CGFloat, lane: CGFloat, seed: CGFloat, phase: CGFloat) -> CGPoint {
-            let center = centerPoint(progress: progress, phase: phase)
-            let vectors = tangentNormal(progress: progress, phase: phase)
-            let envelope = 0.66 + 0.34 * pow(max(0, sin(progress * .pi)), 0.76)
-            let flow = progress * 2 * .pi
-            let wiggle = min(width, height) * (0.0025 + 0.0020 * breath) * (
-                sin(flow * (1.20 + 0.12 * seed) + seed * 5.7 + phase * 1.12)
-                + 0.45 * sin(flow * 2.15 + seed * 9.4 - phase * 0.82)
-            ) * motionScale
-            let perspective = (progress - 0.50) * width * 0.016 * (0.40 + 0.60 * (1 - abs(lane)))
-            let flowSlip = min(width, height) * 0.0060 * envelope * sin(flow * 1.08 - phase * 1.38 + seed * 6.1) * motionScale
-            let offset = lane * bundleHalfWidth * envelope * (0.84 + 0.34 * breath) + wiggle
-            return CGPoint(
-                x: center.x + vectors.normal.dx * offset + vectors.tangent.dx * (perspective + flowSlip),
-                y: center.y + vectors.normal.dy * offset + vectors.tangent.dy * (perspective + flowSlip)
-            )
+        func smoothNoise(_ value: CGFloat, seed: Int) -> CGFloat {
+            let lower = floor(value)
+            let fraction = value - lower
+            let base = Int(lower)
+            let a = pseudoNoise(seed + base * 1_619)
+            let b = pseudoNoise(seed + (base + 1) * 1_619)
+            return mix(a, b, amount: smooth(fraction))
         }
 
-        for strand in 0..<strandCount {
-            let index = CGFloat(strand)
-            let midpoint = max(1, CGFloat(strandCount - 1) * 0.5)
-            let rawLane = (index - CGFloat(strandCount - 1) * 0.5) / midpoint
-            let lane = rawLane == 0 ? 0 : (rawLane > 0 ? 1 : -1) * pow(abs(rawLane), 1.08)
-            let laneAbs = abs(lane)
-            let seed = pseudoNoise(strand * 53 + 19)
-            let localCycle = wrappedUnit(snapshot.cycleProgress + Double(lane) * 0.012 + Double(seed - 0.5) * 0.018)
-            let localBreath = CGFloat(breathAmount(atCycleProgress: localCycle))
-            let phase = slowPhase + lane * 0.045 + (seed - 0.5) * 0.045
-            let startProgress = 0.014 + 0.010 * laneAbs + 0.004 * seed
-            let endProgress = 0.986 - 0.012 * laneAbs - 0.003 * seed
-            var spine: [CGPoint] = []
+        func signedNoise(_ value: CGFloat, seed: Int) -> CGFloat {
+            smoothNoise(value, seed: seed) * 2 - 1
+        }
 
-            for sample in 0...sampleCount {
-                let sampleProgress = CGFloat(sample) / CGFloat(sampleCount)
-                let progress = startProgress + (endProgress - startProgress) * sampleProgress
-                spine.append(strandPoint(progress: progress, lane: lane, seed: seed, phase: phase))
+        func fbm(_ value: CGFloat, seed: Int) -> CGFloat {
+            var amplitude: CGFloat = 0.56
+            var frequency: CGFloat = 1
+            var sum: CGFloat = 0
+            var total: CGFloat = 0
+
+            for octave in 0..<4 {
+                sum += signedNoise(value * frequency, seed: seed + octave * 4_091) * amplitude
+                total += amplitude
+                amplitude *= 0.52
+                frequency *= 2.03
             }
 
-            let centerWeight = 1 - laneAbs
-            let color = lightStringColor(index: strand, seed: seed, breath: localBreath)
-            let accentMultiplier: Double = strand == strandCount - 4 ? 0.58 : 1
-            let coreOpacity = (0.24 + 0.34 * Double(centerWeight) + 0.05 * Double(seed))
-                * Double(0.92 + 0.12 * localBreath)
-                * accentMultiplier
-            let glowOpacity = (0.020 + 0.034 * Double(centerWeight) + 0.006 * Double(seed))
-                * Double(0.90 + 0.12 * localBreath)
-                * accentMultiplier
+            return sum / max(0.001, total)
+        }
 
-            strings.append(
-                LightString(
-                    path: smoothPath(through: spine),
-                    color: color,
-                    glowWidth: (6.2 + 7.4 * centerWeight + 2.0 * seed) * (0.95 + 0.10 * localBreath),
-                    coreWidth: (0.50 + 0.86 * centerWeight + 0.20 * seed) * (0.95 + 0.08 * localBreath),
-                    glowOpacity: glowOpacity,
-                    coreOpacity: coreOpacity
-                )
+        func rotatedPoint(x: CGFloat, y: CGFloat, angle: CGFloat) -> CGPoint {
+            let center = CGPoint(x: 0.50, y: 0.535)
+            let dx = x - center.x
+            let dy = y - center.y
+            let cosine = cos(angle)
+            let sine = sin(angle)
+            return CGPoint(
+                x: width * (center.x + dx * cosine - dy * sine),
+                y: height * (center.y + dx * sine + dy * cosine)
             )
+        }
+
+        func paletteColor(family: Int, strand: Int, lane: CGFloat, seed: CGFloat, localBreath: CGFloat) -> Color {
+            let palettes: [(r: CGFloat, g: CGFloat, b: CGFloat)] = [
+                (0.35, 0.78, 1.00),
+                (0.58, 0.91, 1.00),
+                (0.47, 0.45, 1.00),
+                (0.78, 0.66, 1.00),
+            ]
+            var base = palettes[family % palettes.count]
+            let centerAccent = abs(lane) < 0.18
+            let magenta = (strand + family) % 9 == 4
+            let amber = (strand + family * 2) % 17 == 11
+            let jitter = (seed - 0.5) * 0.024
+
+            if magenta {
+                base = (
+                    mix(base.r, 0.95, amount: 0.34),
+                    mix(base.g, 0.30, amount: 0.22),
+                    mix(base.b, 0.82, amount: 0.16)
+                )
+            } else if amber && centerAccent {
+                base = (
+                    mix(base.r, 1.00, amount: 0.26),
+                    mix(base.g, 0.74, amount: 0.18),
+                    mix(base.b, 0.38, amount: 0.18)
+                )
+            }
+
+            let warmMix = min(0.20, 0.035 + localBreath * 0.095 + (centerAccent ? 0.025 : 0))
+            let warm = (r: CGFloat(1.00), g: CGFloat(0.46), b: CGFloat(0.76))
+            return Color(
+                red: Double(min(1, max(0, mix(base.r, warm.r, amount: warmMix) + jitter))),
+                green: Double(min(1, max(0, mix(base.g, warm.g, amount: warmMix * 0.62) + jitter * 0.35))),
+                blue: Double(min(1, max(0, mix(base.b, warm.b, amount: warmMix * 0.32))))
+            )
+        }
+
+        for family in 0..<familyCount {
+            let familySeed = family * 239 + 37
+            let familyOffset = (CGFloat(family) - CGFloat(familyCount - 1) * 0.5) * 0.036
+            let naturalOffset = familyOffset * (0.42 + 0.78 * breathEase)
+            let familyNoise = pseudoNoise(familySeed)
+            let depth = 0.58 + 0.42 * pseudoNoise(familySeed + 13)
+            let amplitude = 0.074 + 0.048 * pseudoNoise(familySeed + 29) + 0.046 * breathEase
+            let bandWidth = minSide * (0.020 + 0.014 * pseudoNoise(familySeed + 41)) * spread * (0.82 + 0.28 * depth)
+            let familyPhase = cyclePhase * (0.50 + 0.12 * CGFloat(family)) + continuousTime * 0.025 * flowSpeed * (0.82 + 0.42 * familyNoise)
+            let rotation = (-0.075 + 0.050 * CGFloat(family)) + 0.020 * signedNoise(cyclePhase * 0.45 + familyNoise * 3.0, seed: familySeed + 71)
+
+            func centerPoint(progress rawProgress: CGFloat) -> CGPoint {
+                let progress = min(1, max(0, rawProgress))
+                let envelope = pow(max(0, sin(progress * .pi)), 0.64)
+                let drift = familyPhase * 0.38
+                let warp = 0.038 * envelope * signedNoise(progress * 2.14 + drift + familyNoise * 6.0, seed: familySeed + 101)
+                let t = min(1.08, max(-0.08, progress + warp))
+                let macro = sin(2 * .pi * (t * (0.82 + 0.18 * familyNoise) + 0.10 * CGFloat(family)) + familyPhase * 0.86)
+                let counter = sin(2 * .pi * (t * (1.74 + 0.16 * pseudoNoise(familySeed + 5)) + 0.27 * familyNoise) - familyPhase * 0.54)
+                let fine = fbm(t * 3.1 + familyPhase * 0.21 + familyNoise * 5.0, seed: familySeed + 131)
+                let xNoise = 0.012 * envelope * fbm(t * 2.2 - familyPhase * 0.16, seed: familySeed + 151)
+                let x = -0.065 + 1.130 * progress + xNoise + 0.010 * envelope * macro
+                let centerPull = naturalOffset * (0.72 + 0.28 * breathEase) - familyOffset * focus * 0.18
+                let y = 0.642
+                    - 0.246 * progress
+                    + centerPull
+                    + envelope * amplitude * (0.72 * macro + 0.28 * counter + 0.34 * fine)
+                    - 0.018 * breathEase
+
+                return rotatedPoint(x: x, y: y, angle: rotation)
+            }
+
+            func tangentNormal(progress: CGFloat) -> (tangent: CGVector, normal: CGVector) {
+                let delta: CGFloat = 0.004
+                let previous = centerPoint(progress: progress - delta)
+                let next = centerPoint(progress: progress + delta)
+                let dx = next.x - previous.x
+                let dy = next.y - previous.y
+                let length = max(1, sqrt(dx * dx + dy * dy))
+                let tangent = CGVector(dx: dx / length, dy: dy / length)
+                let normal = CGVector(dx: -tangent.dy, dy: tangent.dx)
+                return (tangent, normal)
+            }
+
+            func strandPoint(progress: CGFloat, lane: CGFloat, seed: CGFloat, localBreath: CGFloat, strandPhase: CGFloat) -> CGPoint {
+                let center = centerPoint(progress: progress)
+                let vectors = tangentNormal(progress: progress)
+                let envelope = pow(max(0, sin(progress * .pi)), 0.74)
+                let flow = progress * 2 * .pi
+                let weaveNoise = signedNoise(progress * 3.55 + strandPhase * 0.42 + seed * 4.0, seed: familySeed + 173)
+                let harmonicWeave = sin(flow * (1.48 + seed * 0.28) + strandPhase * 1.05 + seed * 5.4)
+                    + 0.42 * sin(flow * (2.36 + seed * 0.22) - strandPhase * 0.72 + seed * 8.3)
+                let localSpread = 0.72 + 0.54 * localBreath
+                let offset = lane * bandWidth * envelope * localSpread
+                    + minSide * (0.0032 + 0.0035 * localBreath) * (0.60 * weaveNoise + 0.40 * harmonicWeave) * motionScale
+                let tangentSlip = minSide * (0.007 + 0.010 * localBreath) * envelope
+                    * sin(flow * 1.19 - strandPhase * 1.18 + seed * 6.8) * motionScale
+                let perspective = width * 0.018 * (progress - 0.5) * (1 - abs(lane) * 0.42)
+                return CGPoint(
+                    x: center.x + vectors.normal.dx * offset + vectors.tangent.dx * (tangentSlip + perspective),
+                    y: center.y + vectors.normal.dy * offset + vectors.tangent.dy * (tangentSlip + perspective)
+                )
+            }
+
+            for strand in 0..<strandsPerFamily {
+                let strandSeed = pseudoNoise(familySeed + strand * 53 + 19)
+                let index = CGFloat(strand)
+                let midpoint = max(1, CGFloat(strandsPerFamily - 1) * 0.5)
+                let rawLane = (index - CGFloat(strandsPerFamily - 1) * 0.5) / midpoint
+                let laneSign: CGFloat = rawLane >= 0 ? 1 : -1
+                let laneJitter = (strandSeed - 0.5) * 0.075
+                let lane = laneSign * pow(abs(rawLane), 1.18) + laneJitter
+                let laneAbs = min(1, abs(lane))
+                let localCycle = wrappedUnit(
+                    snapshot.cycleProgress
+                        + Double(familyOffset * 0.28)
+                        + Double(lane) * 0.026
+                        + Double(strandSeed - 0.5) * 0.040
+                )
+                let localBreath = CGFloat(breathAmount(atCycleProgress: localCycle))
+                let strandPhase = familyPhase + lane * 0.34 + (strandSeed - 0.5) * 0.62
+                let startProgress = -0.010 + 0.018 * laneAbs + 0.004 * strandSeed
+                let endProgress = 1.010 - 0.016 * laneAbs - 0.004 * strandSeed
+                var spine: [CGPoint] = []
+
+                for sample in 0...sampleCount {
+                    let sampleProgress = CGFloat(sample) / CGFloat(sampleCount)
+                    let progress = startProgress + (endProgress - startProgress) * sampleProgress
+                    spine.append(strandPoint(progress: progress, lane: lane, seed: strandSeed, localBreath: localBreath, strandPhase: strandPhase))
+                }
+
+                let centerWeight = 1 - laneAbs
+                let frontWeight = 0.70 + 0.30 * depth
+                let color = paletteColor(family: family, strand: strand, lane: lane, seed: strandSeed, localBreath: localBreath)
+                let isFrontCore = centerWeight > 0.20 || (strand + family) % 5 == 1
+                let pulsePosition = CGFloat(wrappedUnit(
+                    snapshot.cycleProgress * Double(0.74 + 0.06 * CGFloat(family))
+                        + time * Double(0.026 + 0.020 * breathEase) * Double(0.78 + 0.42 * strandSeed)
+                        + Double(strandSeed)
+                        + Double(family) * 0.17
+                ))
+                let pulseWidth = 0.030 + 0.016 * strandSeed + 0.010 * localBreath
+                let pulseOpacity = (0.22 + 0.22 * Double(centerWeight)) * Double(0.58 + 0.52 * localBreath) * Double(frontWeight)
+
+                strings.append(
+                    LightString(
+                        path: smoothPath(through: spine),
+                        color: color,
+                        auraWidth: (11.0 + 15.0 * centerWeight + 5.0 * strandSeed) * (0.90 + 0.22 * localBreath),
+                        bodyWidth: (2.2 + 3.4 * centerWeight + 1.2 * strandSeed) * (0.88 + 0.22 * localBreath),
+                        coreWidth: (0.42 + 1.05 * centerWeight + 0.20 * strandSeed) * (0.90 + 0.18 * localBreath),
+                        auraOpacity: Double(0.015 + 0.020 * centerWeight) * Double(brightness) * Double(frontWeight),
+                        bodyOpacity: Double(0.060 + 0.090 * centerWeight) * Double(brightness) * Double(frontWeight),
+                        coreOpacity: Double(0.13 + 0.27 * centerWeight) * Double(0.88 + 0.22 * localBreath) * Double(frontWeight),
+                        pulsePosition: pulsePosition,
+                        pulseWidth: pulseWidth,
+                        pulseOpacity: pulseOpacity,
+                        isFrontCore: isFrontCore
+                    )
+                )
+            }
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 18))
+            layerContext.addFilter(.blur(radius: 24))
             layerContext.fill(
                 Path(ellipseIn: CGRect(
-                    x: width * 0.08,
-                    y: height * 0.510,
-                    width: width * 0.78,
-                    height: height * 0.220
+                    x: width * 0.03,
+                    y: height * 0.40,
+                    width: width * 0.90,
+                    height: height * 0.34
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color(red: 0.02, green: 0.22, blue: 0.72).opacity(0.12 + 0.04 * Double(breath)),
-                        Color(red: 0.00, green: 0.11, blue: 0.35).opacity(0.06),
+                        Color(red: 0.02, green: 0.18, blue: 0.54).opacity(0.11 + 0.05 * Double(breathEase)),
+                        Color(red: 0.06, green: 0.05, blue: 0.28).opacity(0.07),
                         .clear,
                     ]),
-                    center: CGPoint(x: width * 0.42, y: height * 0.62),
+                    center: CGPoint(x: width * (0.45 + 0.04 * breathEase), y: height * 0.56),
                     startRadius: 0,
-                    endRadius: width * 0.48
+                    endRadius: width * 0.54
                 )
             )
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 12 + 1.5 * breath))
+            layerContext.addFilter(.blur(radius: 13 + 3.5 * breathEase))
             for string in strings {
                 layerContext.stroke(
                     string.path,
-                    with: .color(string.color.opacity(string.glowOpacity * 0.82)),
-                    style: StrokeStyle(lineWidth: string.glowWidth * 1.70, lineCap: .round, lineJoin: .round)
+                    with: .color(string.color.opacity(string.auraOpacity)),
+                    style: StrokeStyle(lineWidth: string.auraWidth * 1.35, lineCap: .round, lineJoin: .round)
                 )
             }
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 2.6 + 0.6 * breath))
+            layerContext.addFilter(.blur(radius: 3.3 + 1.6 * breathEase))
             for string in strings {
                 layerContext.stroke(
                     string.path,
-                    with: .color(string.color.opacity(string.glowOpacity * 1.92)),
-                    style: StrokeStyle(lineWidth: string.glowWidth * 0.44, lineCap: .round, lineJoin: .round)
+                    with: .color(string.color.opacity(string.bodyOpacity)),
+                    style: StrokeStyle(lineWidth: string.bodyWidth, lineCap: .round, lineJoin: .round)
                 )
             }
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 0.16))
+            layerContext.addFilter(.blur(radius: 0.65))
             for string in strings {
+                layerContext.stroke(
+                    string.path.trimmedPath(from: 0.026, to: 0.974),
+                    with: .color(string.color.opacity(string.bodyOpacity * 0.84)),
+                    style: StrokeStyle(lineWidth: max(0.6, string.bodyWidth * 0.40), lineCap: .round, lineJoin: .round)
+                )
+            }
+        }
+
+        context.drawLayer { layerContext in
+            layerContext.addFilter(.blur(radius: 0.18))
+            for string in strings where string.isFrontCore {
                 layerContext.stroke(
                     string.path.trimmedPath(from: 0.045, to: 0.955),
                     with: .color(string.color.opacity(string.coreOpacity)),
@@ -175,55 +313,51 @@ enum MeditationRenderer {
                 )
                 layerContext.stroke(
                     string.path.trimmedPath(from: 0, to: 0.055),
-                    with: .color(string.color.opacity(string.coreOpacity * 0.22)),
-                    style: StrokeStyle(lineWidth: string.coreWidth * 0.82, lineCap: .round, lineJoin: .round)
+                    with: .color(string.color.opacity(string.coreOpacity * 0.20)),
+                    style: StrokeStyle(lineWidth: string.coreWidth * 0.78, lineCap: .round, lineJoin: .round)
                 )
                 layerContext.stroke(
                     string.path.trimmedPath(from: 0.945, to: 1),
-                    with: .color(string.color.opacity(string.coreOpacity * 0.22)),
-                    style: StrokeStyle(lineWidth: string.coreWidth * 0.82, lineCap: .round, lineJoin: .round)
+                    with: .color(string.color.opacity(string.coreOpacity * 0.20)),
+                    style: StrokeStyle(lineWidth: string.coreWidth * 0.78, lineCap: .round, lineJoin: .round)
                 )
             }
         }
 
         context.drawLayer { layerContext in
-            for index in [strandCount / 2 - 1, strandCount / 2, strandCount / 2 + 1] where index >= 0 && index < strings.count {
-                let string = strings[index]
+            layerContext.addFilter(.blur(radius: 2.2))
+            for string in strings where string.isFrontCore {
+                let start = max(0.06, string.pulsePosition - string.pulseWidth)
+                let end = min(0.94, string.pulsePosition + string.pulseWidth)
+                guard end > start else {
+                    continue
+                }
+
                 layerContext.stroke(
-                    string.path.trimmedPath(from: 0.06, to: 0.96),
-                    with: .color(Color(red: 0.88, green: 0.98, blue: 1.0).opacity(string.coreOpacity * 0.34)),
-                    style: StrokeStyle(lineWidth: max(0.34, string.coreWidth * 0.28), lineCap: .round, lineJoin: .round)
+                    string.path.trimmedPath(from: start, to: end),
+                    with: .color(string.color.opacity(string.pulseOpacity * 0.58)),
+                    style: StrokeStyle(lineWidth: max(3.2, string.bodyWidth * 1.34), lineCap: .round, lineJoin: .round)
                 )
             }
         }
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 0.55))
-            for sparkIndex in 0..<(reduceMotion ? 10 : 20) {
-                let n0 = pseudoNoise(sparkIndex * 17 + 5)
-                let n1 = pseudoNoise(sparkIndex * 17 + 11)
-                let n2 = pseudoNoise(sparkIndex * 17 + 23)
-                let progress = 0.12 + 0.78 * n0
-                let lane = -0.86 + 1.72 * n1
-                let point = strandPoint(progress: progress, lane: lane, seed: n2, phase: slowPhase + n2 * 0.1)
-                let radius = 0.45 + 0.90 * pseudoNoise(sparkIndex * 17 + 41)
-                let opacity = 0.12 + 0.18 * Double(1 - abs(lane)) * Double(0.78 + 0.22 * inhaleDrive)
-                let color = sparkIndex % 6 == 0
-                    ? Color(red: 1.0, green: 0.22, blue: 0.76)
-                    : Color(red: 0.68, green: 0.94, blue: 1.0)
-                layerContext.fill(
-                    Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)),
-                    with: .radialGradient(
-                        Gradient(colors: [color.opacity(opacity), color.opacity(opacity * 0.24), .clear]),
-                        center: point,
-                        startRadius: 0,
-                        endRadius: radius * 2.2
-                    )
+            layerContext.addFilter(.blur(radius: 0.32))
+            for string in strings where string.isFrontCore {
+                let start = max(0.06, string.pulsePosition - string.pulseWidth * 0.50)
+                let end = min(0.94, string.pulsePosition + string.pulseWidth * 0.50)
+                guard end > start else {
+                    continue
+                }
+
+                layerContext.stroke(
+                    string.path.trimmedPath(from: start, to: end),
+                    with: .color(Color(red: 0.92, green: 0.98, blue: 1.0).opacity(string.pulseOpacity)),
+                    style: StrokeStyle(lineWidth: max(0.8, string.coreWidth * 1.18), lineCap: .round, lineJoin: .round)
                 )
             }
         }
     }
-
     static func drawBreathingHorizon(
         in context: inout GraphicsContext,
         size: CGSize,
