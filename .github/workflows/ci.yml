@@ -142,7 +142,6 @@ jobs:
 
           echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
           echo "simulator_id=$simulator_id" >> "$GITHUB_OUTPUT"
-          xcrun simctl boot "$simulator_id" >/dev/null 2>&1 || true
 
       - name: Run package tests
         run: |
@@ -221,7 +220,6 @@ jobs:
           fi
 
           echo "simulator_id=$simulator_id" >> "$GITHUB_OUTPUT"
-          xcrun simctl boot "$simulator_id" >/dev/null 2>&1 || true
 
       - name: Build simulator app
         shell: bash
