@@ -36,7 +36,6 @@ enum MeditationRenderer {
         let minSide = min(width, height)
         let spread = (0.62 + 0.56 * breathEase) * motionScale
         let brightness = 0.74 + 0.34 * breathEase
-        let flowSpeed = 0.36 + 0.72 * breathEase
         var strings: [LightString] = []
 
         func mix(_ a: CGFloat, _ b: CGFloat, amount: CGFloat) -> CGFloat {
@@ -132,8 +131,15 @@ enum MeditationRenderer {
             let depth = 0.58 + 0.42 * pseudoNoise(familySeed + 13)
             let amplitude = 0.060 + 0.026 * pseudoNoise(familySeed + 29) + 0.052 * breathEase
             let bandWidth = minSide * (0.028 + 0.010 * pseudoNoise(familySeed + 41)) * spread * (0.82 + 0.24 * depth)
-            let familyPhase = cyclePhase * (0.60 + 0.10 * CGFloat(family)) + continuousTime * 0.020 * flowSpeed * (0.82 + 0.42 * familyNoise)
-            let rotation = (-0.044 + 0.034 * CGFloat(family)) + 0.014 * signedNoise(cyclePhase * 0.45 + familyNoise * 3.0, seed: familySeed + 71)
+            // Keep time independent from breath-dependent coefficients: `time * breathEase`
+            // makes apparent speed grow with elapsed time. Cycle influence stays sinusoidal
+            // so the ribbon field is continuous when the breathing cycle wraps.
+            let familyPhase = continuousTime * 0.020 * (0.82 + 0.42 * familyNoise)
+                + CGFloat(family) * 0.17
+                + 0.24 * sin(cyclePhase + familyNoise * 2.7)
+                + 0.10 * sin(2 * cyclePhase + CGFloat(family) * 0.9)
+            let rotation = (-0.044 + 0.034 * CGFloat(family))
+                + 0.014 * sin(cyclePhase + familyNoise * 4.0)
 
             func centerPoint(progress rawProgress: CGFloat) -> CGPoint {
                 let progress = min(1, max(0, rawProgress))
@@ -220,9 +226,11 @@ enum MeditationRenderer {
                 let sustainedBreath = 0.24 + 0.76 * localBreath
                 let color = paletteColor(family: family, strand: strand, lane: lane, seed: strandSeed, localBreath: localBreath)
                 let isFrontCore = centerWeight > 0.30 || (strand + family) % 7 == 1
+                let pulseCycleOffset = 0.045 * sin(cyclePhase + CGFloat(family) * 0.8 + strandSeed * 4.1)
+                    + 0.018 * sin(2 * cyclePhase + strandSeed * 7.3)
                 let pulsePosition = CGFloat(wrappedUnit(
-                    snapshot.cycleProgress * Double(0.74 + 0.06 * CGFloat(family))
-                        + time * Double(0.026 + 0.020 * breathEase) * Double(0.78 + 0.42 * strandSeed)
+                    time * Double(0.020 + 0.006 * strandSeed)
+                        + Double(pulseCycleOffset)
                         + Double(strandSeed)
                         + Double(family) * 0.17
                 ))
