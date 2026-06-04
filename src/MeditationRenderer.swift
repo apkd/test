@@ -433,35 +433,65 @@ enum MeditationRenderer {
 
         context.drawLayer { layer in
             layer.addFilter(.blur(radius: 0.55))
-
-            for index in 0..<count {
-                let seed = index * 61 + 509
-                let n0 = pseudoNoise(seed)
-                let n1 = pseudoNoise(seed + 13)
-                let n2 = pseudoNoise(seed + 29)
-                let n3 = pseudoNoise(seed + 47)
-                let progress = n0
-                let envelope = pow(max(0, sin(progress * .pi)), 0.62)
-                let x = width * (-0.04 + 1.08 * progress)
-                    + width * (n1 - 0.5) * (0.05 + 0.16 * envelope)
-                    + width * 0.012 * sin(t * (0.06 + 0.05 * n2) + n3 * .pi * 2)
-                let y = height * (0.64 - 0.22 * progress)
-                    + height * (n2 - 0.5) * (0.05 + 0.15 * envelope)
-                    + height * 0.010 * cos(t * (0.05 + 0.04 * n1) + n0 * .pi * 2)
-                let radius = 0.35 + 1.25 * n3
-                let spark = n2 > 0.88
-                let opacity = (spark ? 0.20 : 0.055) * Double(0.42 + 0.58 * envelope) * Double(0.78 + 0.36 * breath)
-                let color = spark
-                    ? Color.white.opacity(opacity)
-                    : Color(red: 0.34 + 0.36 * Double(n1), green: 0.62 + 0.30 * Double(n2), blue: 1.0).opacity(opacity)
-
-                layer.fill(
-                    Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)),
-                    with: .color(color)
-                )
-            }
+            drawSilkRibbonParticleLayer(
+                in: &layer,
+                width: width,
+                height: height,
+                count: count,
+                breath: breath,
+                time: t
+            )
         }
     }
+
+    private static func drawSilkRibbonParticleLayer(
+        in context: inout GraphicsContext,
+        width: CGFloat,
+        height: CGFloat,
+        count: Int,
+        breath: CGFloat,
+        time: CGFloat
+    ) {
+        for index in 0..<count {
+            let seed = index * 61 + 509
+            let n0 = pseudoNoise(seed)
+            let n1 = pseudoNoise(seed + 13)
+            let n2 = pseudoNoise(seed + 29)
+            let n3 = pseudoNoise(seed + 47)
+            let progress = n0
+            let envelope = pow(max(0, sin(progress * .pi)), 0.62)
+            let baseX = width * (-0.04 + 1.08 * progress)
+            let scatterX = width * (n1 - 0.5) * (0.05 + 0.16 * envelope)
+            let driftPhaseX = time * (0.06 + 0.05 * n2) + n3 * .pi * 2
+            let driftX = width * 0.012 * sin(driftPhaseX)
+            let baseY = height * (0.64 - 0.22 * progress)
+            let scatterY = height * (n2 - 0.5) * (0.05 + 0.15 * envelope)
+            let driftPhaseY = time * (0.05 + 0.04 * n1) + n0 * .pi * 2
+            let driftY = height * 0.010 * cos(driftPhaseY)
+            let x = baseX + scatterX + driftX
+            let y = baseY + scatterY + driftY
+            let radius = 0.35 + 1.25 * n3
+            let spark = n2 > 0.88
+            let envelopeOpacity = 0.42 + 0.58 * envelope
+            let breathOpacity = 0.78 + 0.36 * breath
+            let baseOpacity = spark ? 0.20 : 0.055
+            let opacity = Double(baseOpacity * envelopeOpacity * breathOpacity)
+            let color: Color
+
+            if spark {
+                color = Color.white.opacity(opacity)
+            } else {
+                let red = 0.34 + 0.36 * Double(n1)
+                let green = 0.62 + 0.30 * Double(n2)
+                color = Color(red: red, green: green, blue: 1.0).opacity(opacity)
+            }
+
+            let diameter = radius * 2
+            let rect = CGRect(x: x - radius, y: y - radius, width: diameter, height: diameter)
+            context.fill(Path(ellipseIn: rect), with: .color(color))
+        }
+    }
+
     static func drawBreathingHorizon(
         in context: inout GraphicsContext,
         size: CGSize,
