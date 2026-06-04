@@ -285,7 +285,7 @@ jobs:
           screenshots_dir="app-smoke-screenshots-${{ matrix.artifact_suffix }}"
           logs_dir="$RUNNER_TEMP/app-smoke-logs"
           results="$RUNNER_TEMP/app-smoke-results.tsv"
-          initial_delay_seconds="0.8"
+          initial_delay_seconds="1.8"
           transition_delay_seconds="0.24"
           smoke_file_name="meditation-smoke-panel.txt"
 
