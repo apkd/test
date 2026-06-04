@@ -298,25 +298,34 @@ enum MeditationRenderer {
             y: height * (0.505 - 0.020 * breathEase)
         )
 
+        drawSilkRibbonSparkBurst(
+            in: &context,
+            size: size,
+            center: flareCenter,
+            breath: breathEase,
+            time: time,
+            reduceMotion: reduceMotion
+        )
+
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 18))
+            layerContext.addFilter(.blur(radius: 20))
             layerContext.fill(
                 Path(ellipseIn: CGRect(
-                    x: flareCenter.x - minSide * 0.28,
-                    y: flareCenter.y - minSide * 0.17,
-                    width: minSide * 0.56,
-                    height: minSide * 0.34
+                    x: flareCenter.x - minSide * 0.34,
+                    y: flareCenter.y - minSide * 0.20,
+                    width: minSide * 0.68,
+                    height: minSide * 0.40
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.24 + 0.18 * Double(breathEase)),
-                        Color(red: 0.34, green: 0.86, blue: 1.0).opacity(0.22 + 0.12 * Double(breathEase)),
-                        Color(red: 0.78, green: 0.34, blue: 1.0).opacity(0.16),
+                        Color.white.opacity(0.36 + 0.24 * Double(breathEase)),
+                        Color(red: 0.34, green: 0.88, blue: 1.0).opacity(0.28 + 0.16 * Double(breathEase)),
+                        Color(red: 0.78, green: 0.34, blue: 1.0).opacity(0.20),
                         .clear,
                     ]),
                     center: flareCenter,
                     startRadius: 0,
-                    endRadius: minSide * 0.28
+                    endRadius: minSide * 0.34
                 )
             )
         }
@@ -432,8 +441,8 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let count = reduceMotion ? 4 : 7
-        let intensity = 0.76 + 0.42 * breath
+        let count = reduceMotion ? 4 : 8
+        let intensity = 0.86 + 0.52 * breath
 
         context.drawLayer { layer in
             layer.addFilter(.blur(radius: 17))
@@ -452,8 +461,8 @@ enum MeditationRenderer {
                 let n0 = pseudoNoise(seed)
                 let n1 = pseudoNoise(seed + 17)
                 let color = silkRibbonVeilColor(index: index, breath: breath)
-                let lineWidth = minSide * (0.040 + 0.026 * n0) * (0.92 + 0.28 * breath)
-                let opacity = Double(0.035 + 0.026 * n1) * Double(intensity)
+                let lineWidth = minSide * (0.048 + 0.030 * n0) * (0.92 + 0.30 * breath)
+                let opacity = Double(0.046 + 0.030 * n1) * Double(intensity)
 
                 layer.stroke(
                     path,
@@ -480,8 +489,8 @@ enum MeditationRenderer {
                 let n0 = pseudoNoise(seed)
                 let n1 = pseudoNoise(seed + 29)
                 let color = silkRibbonVeilColor(index: index, breath: breath)
-                let lineWidth = minSide * (0.012 + 0.010 * n0) * (0.88 + 0.26 * breath)
-                let opacity = Double(0.088 + 0.054 * n1) * Double(intensity)
+                let lineWidth = minSide * (0.014 + 0.012 * n0) * (0.88 + 0.28 * breath)
+                let opacity = Double(0.110 + 0.066 * n1) * Double(intensity)
 
                 layer.stroke(
                     path,
@@ -506,7 +515,7 @@ enum MeditationRenderer {
                 )
                 let centerDistance = abs(CGFloat(index) - CGFloat(count - 1) * 0.5) / max(1, CGFloat(count - 1) * 0.5)
                 let lineWidth = max(0.8, minSide * (0.0022 + 0.0028 * (1 - centerDistance)))
-                let opacity = Double(0.20 + 0.22 * (1 - centerDistance)) * Double(0.82 + 0.28 * breath)
+                let opacity = Double(0.26 + 0.30 * (1 - centerDistance)) * Double(0.86 + 0.34 * breath)
                 let color = centerDistance < 0.25
                     ? Color(red: 0.92, green: 0.98, blue: 1.0)
                     : silkRibbonVeilColor(index: index, breath: breath)
@@ -525,24 +534,24 @@ enum MeditationRenderer {
         )
 
         context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 11))
+            layer.addFilter(.blur(radius: 13))
             layer.fill(
                 Path(ellipseIn: CGRect(
-                    x: flareCenter.x - minSide * 0.17,
-                    y: flareCenter.y - minSide * 0.095,
-                    width: minSide * 0.34,
-                    height: minSide * 0.19
+                    x: flareCenter.x - minSide * 0.23,
+                    y: flareCenter.y - minSide * 0.125,
+                    width: minSide * 0.46,
+                    height: minSide * 0.25
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.28 + 0.20 * Double(breath)),
-                        Color(red: 0.30, green: 0.86, blue: 1.0).opacity(0.20),
-                        Color(red: 0.92, green: 0.32, blue: 1.0).opacity(0.12),
+                        Color.white.opacity(0.42 + 0.28 * Double(breath)),
+                        Color(red: 0.30, green: 0.86, blue: 1.0).opacity(0.28),
+                        Color(red: 0.92, green: 0.32, blue: 1.0).opacity(0.18),
                         .clear,
                     ]),
                     center: flareCenter,
                     startRadius: 0,
-                    endRadius: minSide * 0.17
+                    endRadius: minSide * 0.23
                 )
             )
         }
@@ -618,6 +627,66 @@ enum MeditationRenderer {
             green: base.green + (0.38 - base.green) * warm,
             blue: base.blue + (0.86 - base.blue) * warm
         )
+    }
+
+    private static func drawSilkRibbonSparkBurst(
+        in context: inout GraphicsContext,
+        size: CGSize,
+        center: CGPoint,
+        breath: CGFloat,
+        time: TimeInterval,
+        reduceMotion: Bool
+    ) {
+        let width = size.width
+        let height = size.height
+        let minSide = min(width, height)
+        let count = reduceMotion ? 48 : 126
+        let t = CGFloat(time)
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 0.45))
+
+            for index in 0..<count {
+                let seed = index * 71 + 2401
+                let n0 = pseudoNoise(seed)
+                let n1 = pseudoNoise(seed + 11)
+                let n2 = pseudoNoise(seed + 23)
+                let n3 = pseudoNoise(seed + 47)
+                let angle = n0 * .pi * 2
+                let distance = minSide * (0.010 + 0.315 * pow(n1, 1.75)) * (0.84 + 0.28 * breath)
+                let flow = t * (0.035 + 0.030 * n2) + n3 * .pi * 2
+                let diagonal = CGVector(dx: cos(-0.30), dy: sin(-0.30))
+                let spreadX = cos(angle) * distance * (1.48 + 0.35 * n2)
+                    + diagonal.dx * minSide * 0.050 * sin(flow)
+                let spreadY = sin(angle) * distance * (0.46 + 0.34 * n3)
+                    + diagonal.dy * minSide * 0.040 * cos(flow * 0.9)
+                let x = center.x + spreadX
+                let y = center.y + spreadY
+                let radius = 0.16 + 0.70 * n2
+                let local = max(0, 1 - distance / max(1, minSide * 0.34))
+                let twinkle = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * (0.42 + 0.55 * n3) + n2 * .pi * 2))
+                let opacity = Double(0.055 + 0.22 * local) * Double(0.78 + 0.42 * breath) * Double(twinkle)
+                let color: Color
+
+                if n3 > 0.78 {
+                    color = Color.white.opacity(opacity * 1.25)
+                } else if n2 > 0.48 {
+                    color = Color(red: 0.35, green: 0.86, blue: 1.0).opacity(opacity)
+                } else {
+                    color = Color(red: 0.92, green: 0.36, blue: 1.0).opacity(opacity * 0.82)
+                }
+
+                layer.fill(
+                    Path(ellipseIn: CGRect(
+                        x: x - radius,
+                        y: y - radius,
+                        width: radius * (1.3 + 0.9 * n1),
+                        height: radius * (1.1 + 0.7 * n0)
+                    )),
+                    with: .color(color)
+                )
+            }
+        }
     }
 
     private static func drawSilkRibbonParticles(
@@ -1259,6 +1328,61 @@ enum MeditationRenderer {
                 )
             }
         }
+
+        drawBloomPinStars(
+            in: &context,
+            size: size,
+            center: center,
+            breath: breath,
+            time: time,
+            reduceMotion: reduceMotion
+        )
+    }
+
+    private static func drawBloomPinStars(
+        in context: inout GraphicsContext,
+        size: CGSize,
+        center: CGPoint,
+        breath: CGFloat,
+        time: TimeInterval,
+        reduceMotion: Bool
+    ) {
+        let width = size.width
+        let height = size.height
+        let scale = min(width, height)
+        let t = CGFloat(time)
+        let count = reduceMotion ? 52 : 150
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 0.08))
+
+            for index in 0..<count {
+                let seed = index * 83 + 2609
+                let n0 = pseudoNoise(seed)
+                let n1 = pseudoNoise(seed + 17)
+                let n2 = pseudoNoise(seed + 37)
+                let n3 = pseudoNoise(seed + 59)
+                let x = width * n0 + scale * 0.006 * sin(t * (0.018 + 0.032 * n2) + n3 * .pi * 2)
+                let y = height * n1 + scale * 0.006 * cos(t * (0.016 + 0.030 * n0) + n2 * .pi * 2)
+                let dx = (x - center.x) / max(1, width * 0.52)
+                let dy = (y - center.y) / max(1, height * 0.50)
+                let proximity = max(0, 1 - sqrt(dx * dx + dy * dy))
+                let twinkle = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * (0.35 + 0.28 * n3) + n1 * .pi * 2))
+                let radius = 0.12 + 0.44 * n2
+                let warm = n3 > 0.84
+                let opacity = Double(0.040 + 0.155 * proximity)
+                    * Double(0.78 + 0.42 * breath)
+                    * Double(twinkle)
+                let color = warm
+                    ? Color(red: 1.0, green: 0.72, blue: 0.96).opacity(opacity)
+                    : Color(red: 0.74 + 0.22 * Double(n2), green: 0.70 + 0.20 * Double(n3), blue: 1.0).opacity(opacity)
+
+                layer.fill(
+                    Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)),
+                    with: .color(color)
+                )
+            }
+        }
     }
 
     static func drawSoftGlow(
@@ -1349,6 +1473,15 @@ enum MeditationRenderer {
             }
         }
 
+        drawSoftGlowVeilTexture(
+            in: &context,
+            size: size,
+            breath: breathEase,
+            exhaleDepth: exhaleDepth,
+            time: time,
+            reduceMotion: reduceMotion
+        )
+
         context.fill(
             Path(CGRect(x: 0, y: 0, width: width, height: height)),
             with: .color(.black.opacity(0.26 * Double(exhaleDepth)))
@@ -1357,9 +1490,65 @@ enum MeditationRenderer {
         drawSoftGlowGrain(
             in: &context,
             size: size,
-            count: reduceMotion ? 800 : 2_800,
-            alphaScale: (reduceMotion ? 1.10 : 1.85) * (1.0 + 0.42 * Double(exhaleDepth))
+            count: reduceMotion ? 600 : 1_900,
+            alphaScale: (reduceMotion ? 1.14 : 1.96) * (1.0 + 0.42 * Double(exhaleDepth))
         )
+    }
+
+    private static func drawSoftGlowVeilTexture(
+        in context: inout GraphicsContext,
+        size: CGSize,
+        breath: CGFloat,
+        exhaleDepth: CGFloat,
+        time: TimeInterval,
+        reduceMotion: Bool
+    ) {
+        let width = size.width
+        let height = size.height
+        let scale = min(width, height)
+        let t = CGFloat(time)
+        let count = reduceMotion ? 4 : 9
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 58))
+
+            for index in 0..<count {
+                let seed = index * 67 + 4201
+                let n0 = pseudoNoise(seed)
+                let n1 = pseudoNoise(seed + 19)
+                let n2 = pseudoNoise(seed + 41)
+                let drift = CGPoint(
+                    x: width * 0.025 * sin(t * (0.028 + 0.020 * n2) + n0 * .pi * 2),
+                    y: height * 0.020 * cos(t * (0.026 + 0.020 * n1) + n2 * .pi * 2)
+                )
+                let center = CGPoint(
+                    x: width * (0.16 + 0.70 * n0) + drift.x,
+                    y: height * (0.18 + 0.56 * n1) + drift.y
+                )
+                let radius = scale * (0.16 + 0.18 * n2) * (0.92 + 0.16 * breath)
+                let opacity = (0.010 + 0.018 * Double(n1)) * Double(0.78 + 0.36 * breath) * Double(1.0 - 0.35 * exhaleDepth)
+                let cool = Color(red: 0.38 + 0.12 * Double(n0), green: 0.46 + 0.12 * Double(n2), blue: 0.94)
+                let violet = Color(red: 0.34 + 0.12 * Double(n2), green: 0.28, blue: 0.70 + 0.16 * Double(n1))
+
+                fillRadialEllipse(
+                    in: &layer,
+                    rect: CGRect(
+                        x: center.x - radius * (1.4 + 0.8 * n1),
+                        y: center.y - radius * (1.1 + 0.6 * n2),
+                        width: radius * (2.5 + 1.1 * n1),
+                        height: radius * (2.0 + 1.0 * n2)
+                    ),
+                    center: center,
+                    startRadius: 0,
+                    endRadius: radius * 1.9,
+                    colors: [
+                        cool.opacity(opacity),
+                        violet.opacity(opacity * 0.72),
+                        .clear,
+                    ]
+                )
+            }
+        }
     }
 
     private static func drawSoftGlowGrain(
@@ -1412,6 +1601,16 @@ enum MeditationRenderer {
             )
         }
 
+        drawMoltenSunsetReflection(
+            in: &context,
+            width: width,
+            waterHeight: waterHeight,
+            horizonY: horizonY,
+            breath: breath,
+            time: t,
+            sunCenterX: sunCenterX
+        )
+
         drawSharpSunsetReflection(
             in: &context,
             width: width,
@@ -1421,6 +1620,61 @@ enum MeditationRenderer {
             time: t,
             sunCenterX: sunCenterX
         )
+    }
+
+    private static func drawMoltenSunsetReflection(
+        in context: inout GraphicsContext,
+        width: CGFloat,
+        waterHeight: CGFloat,
+        horizonY: CGFloat,
+        breath: CGFloat,
+        time: CGFloat,
+        sunCenterX: CGFloat
+    ) {
+        let count = 92
+        let pi2 = CGFloat.pi * 2
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 1.1))
+
+            for index in 0..<count {
+                let seed = index * 53 + 3209
+                let n0 = pseudoNoise(seed)
+                let n1 = pseudoNoise(seed + 13)
+                let n2 = pseudoNoise(seed + 29)
+                let depth = (CGFloat(index) + 0.45 * n0) / CGFloat(count)
+                let nearHorizon = max(0, 1 - depth)
+                let midTrail = max(0, 1 - abs(depth - 0.37) / 0.46)
+                let y = horizonY + waterHeight * (0.035 + 0.86 * depth)
+                let columnHalf = width * (0.020 + 0.050 * nearHorizon + 0.080 * midTrail)
+                let centerDrift = width * (0.006 + 0.014 * depth) * sin(time * (0.18 + 0.16 * n2) + n1 * pi2)
+                let centerX = sunCenterX + centerDrift + (n0 - 0.5) * columnHalf * (0.56 + 0.40 * depth)
+                let widthBase = width * (0.012 + 0.070 * nearHorizon + 0.040 * midTrail)
+                let halfWidth = widthBase * (0.36 + 0.92 * n1) * (0.72 + 0.26 * sin(time * (0.30 + 0.26 * n0) + n2 * pi2))
+                let flicker = glintFlicker(time: time, speed: 0.90 + 1.80 * n2, phase: n1 * pi2, floor: 0.20)
+                let opacity = Double(0.040 + 0.165 * nearHorizon + 0.130 * midTrail)
+                    * Double(0.82 + 0.72 * breath)
+                    * Double(0.58 + 0.68 * n1)
+                    * Double(flicker)
+                let color = depth < 0.24
+                    ? Color(red: 1.0, green: 0.78, blue: 0.36).opacity(opacity)
+                    : Color(red: 1.0, green: 0.28 + 0.26 * Double(nearHorizon), blue: 0.22).opacity(opacity * 0.92)
+                let path = sunsetGlintPath(
+                    startX: centerX - halfWidth,
+                    endX: centerX + halfWidth,
+                    y: y,
+                    amplitude: 0.45 + 3.6 * depth * (0.45 + n2),
+                    phase: n2 * pi2 + time * (0.10 + 0.14 * n0),
+                    segments: n0 > 0.34 ? 4 : 3
+                )
+
+                layer.stroke(
+                    path,
+                    with: .color(color),
+                    style: StrokeStyle(lineWidth: 0.62 + 1.15 * nearHorizon + 0.46 * n0, lineCap: .round, lineJoin: .round)
+                )
+            }
+        }
     }
 
     private static func drawBlurredSunsetReflection(
