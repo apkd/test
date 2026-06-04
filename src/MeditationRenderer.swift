@@ -886,7 +886,7 @@ enum MeditationRenderer {
         let t = CGFloat(time)
 
         context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 1.7))
+            layer.addFilter(.blur(radius: 1.35))
             drawBlurredSunsetReflection(
                 in: &layer,
                 width: width,
@@ -918,10 +918,10 @@ enum MeditationRenderer {
         time: CGFloat,
         sunCenterX: CGFloat
     ) {
-        let total = CGFloat(96)
+        let total = CGFloat(72)
         let pi2 = CGFloat.pi * 2
 
-        for index in 0..<96 {
+        for index in 0..<72 {
             let seed = index * 41 + 113
             let n0 = pseudoNoise(seed)
             let n1 = pseudoNoise(seed + 7)
@@ -979,10 +979,10 @@ enum MeditationRenderer {
         time: CGFloat,
         sunCenterX: CGFloat
     ) {
-        let total = CGFloat(150)
+        let total = CGFloat(118)
         let pi2 = CGFloat.pi * 2
 
-        for index in 0..<150 {
+        for index in 0..<118 {
             let seed = index * 43 + 227
             let n0 = pseudoNoise(seed)
             let n1 = pseudoNoise(seed + 13)
@@ -1058,13 +1058,13 @@ enum MeditationRenderer {
         context.drawLayer { layer in
             layer.addFilter(.blur(radius: 0.55))
 
-            for index in 0..<72 {
+            for index in 0..<54 {
                 let seed = index * 29 + 5
                 let n0 = pseudoNoise(seed)
                 let n1 = pseudoNoise(seed + 11)
                 let n2 = pseudoNoise(seed + 23)
                 let n3 = pseudoNoise(seed + 37)
-                let depth = (CGFloat(index) + 0.65 * n0) / 72
+                let depth = (CGFloat(index) + 0.65 * n0) / 54
                 let y = horizonY + 9 + depth * waterHeight * 0.96
                 let drift = width * 0.026 * sin(t * (0.035 + 0.040 * n2) + CGFloat(index) * 0.91)
                 let startX = width * (-0.14 + 1.28 * n1) + drift
@@ -1089,12 +1089,12 @@ enum MeditationRenderer {
             }
         }
 
-        for index in 0..<34 {
+        for index in 0..<26 {
             let seed = index * 31 + 211
             let n0 = pseudoNoise(seed)
             let n1 = pseudoNoise(seed + 13)
             let n2 = pseudoNoise(seed + 29)
-            let depth = (CGFloat(index) + 0.35 * n0) / 34
+            let depth = (CGFloat(index) + 0.35 * n0) / 26
             let y = horizonY + waterHeight * (0.08 + 0.82 * depth)
             let sunPull = 1 - abs(depth - 0.36)
             let x = sunCenterX + (n1 - 0.5) * width * (0.22 + 0.70 * depth)
