@@ -342,9 +342,9 @@ enum MeditationRenderer {
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.36 + 0.24 * Double(breathEase)),
-                        Color(red: 0.34, green: 0.88, blue: 1.0).opacity(0.28 + 0.16 * Double(breathEase)),
-                        Color(red: 0.66, green: 0.48, blue: 1.0).opacity(0.18),
+                        Color.white.opacity(0.44 + 0.28 * Double(breathEase)),
+                        Color(red: 0.34, green: 0.90, blue: 1.0).opacity(0.34 + 0.18 * Double(breathEase)),
+                        Color(red: 0.66, green: 0.48, blue: 1.0).opacity(0.21),
                         .clear,
                     ]),
                     center: flareCenter,
@@ -462,6 +462,15 @@ enum MeditationRenderer {
             time: time,
             reduceMotion: reduceMotion
         )
+
+        drawSilkRibbonHotKnot(
+            in: &context,
+            size: size,
+            center: flareCenter,
+            breath: breathEase,
+            flow: reversibleFlow,
+            time: time
+        )
     }
 
     private static func drawSilkRibbonSheets(
@@ -522,7 +531,7 @@ enum MeditationRenderer {
         }
 
         context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 13))
+            layer.addFilter(.blur(radius: 12))
 
             for index in 0..<sheetCount {
                 let seed = index * 67 + 7103
@@ -530,9 +539,82 @@ enum MeditationRenderer {
                 let cyan = Color(red: 0.32, green: 0.86, blue: 1.0)
                 let violet = Color(red: 0.64, green: 0.46, blue: 1.0)
                 let color = index.isMultiple(of: 2) ? cyan : violet
-                let opacity = (0.040 + 0.018 * Double(n0)) * Double(0.82 + 0.32 * breath)
+                let opacity = (0.058 + 0.026 * Double(n0)) * Double(0.82 + 0.32 * breath)
 
                 layer.fill(sheetPath(index: index), with: .color(color.opacity(opacity)))
+            }
+        }
+    }
+
+    private static func drawSilkRibbonHotKnot(
+        in context: inout GraphicsContext,
+        size: CGSize,
+        center: CGPoint,
+        breath: CGFloat,
+        flow: CGFloat,
+        time: TimeInterval
+    ) {
+        let minSide = min(size.width, size.height)
+        let t = CGFloat(time)
+        let rotation: CGFloat = -0.31
+        let cosine = cos(rotation)
+        let sine = sin(rotation)
+
+        func localPoint(x: CGFloat, y: CGFloat) -> CGPoint {
+            CGPoint(
+                x: center.x + x * cosine - y * sine,
+                y: center.y + x * sine + y * cosine
+            )
+        }
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 4.8))
+            layer.fill(
+                Path(ellipseIn: CGRect(
+                    x: center.x - minSide * 0.145,
+                    y: center.y - minSide * 0.070,
+                    width: minSide * 0.290,
+                    height: minSide * 0.140
+                )),
+                with: .radialGradient(
+                    Gradient(colors: [
+                        Color.white.opacity(0.34 + 0.26 * Double(breath)),
+                        Color(red: 0.58, green: 0.96, blue: 1.0).opacity(0.28 + 0.14 * Double(breath)),
+                        .clear,
+                    ]),
+                    center: center,
+                    startRadius: 0,
+                    endRadius: minSide * 0.145
+                )
+            )
+        }
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 0.24))
+
+            for index in 0..<7 {
+                let seed = index * 53 + 8501
+                let n0 = pseudoNoise(seed)
+                let n1 = pseudoNoise(seed + 13)
+                let phase = flow * (.pi * (1.15 + 0.24 * n0)) + t * (0.018 + 0.012 * n1)
+                let length = minSide * (0.055 + 0.045 * n0)
+                let offset = minSide * (n1 - 0.5) * 0.050
+                let y = offset + minSide * 0.012 * sin(phase + CGFloat(index) * 0.7)
+                let path = smoothPath(through: [
+                    localPoint(x: -length, y: y + minSide * 0.010 * sin(phase)),
+                    localPoint(x: -length * 0.25, y: y - minSide * 0.014 * cos(phase * 0.9)),
+                    localPoint(x: length * 0.32, y: y + minSide * 0.012 * sin(phase * 1.1)),
+                    localPoint(x: length, y: y - minSide * 0.008 * cos(phase)),
+                ])
+                let color = index.isMultiple(of: 3)
+                    ? Color.white
+                    : (index.isMultiple(of: 2) ? Color(red: 0.66, green: 0.96, blue: 1.0) : Color(red: 0.82, green: 0.72, blue: 1.0))
+
+                layer.stroke(
+                    path,
+                    with: .color(color.opacity(0.34 + 0.30 * Double(breath))),
+                    style: StrokeStyle(lineWidth: 0.55 + 0.65 * n1, lineCap: .round, lineJoin: .round)
+                )
             }
         }
     }
@@ -874,10 +956,10 @@ enum MeditationRenderer {
                     + diagonal.dy * minSide * 0.054 * cos(localFlow * 0.9)
                 let x = center.x + spreadX
                 let y = center.y + spreadY
-                let radius = 0.16 + 0.70 * n2
+                let radius = 0.13 + 0.58 * n2
                 let local = max(0, 1 - distance / max(1, minSide * 0.34))
                 let twinkle = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * (0.42 + 0.55 * n3) + n2 * .pi * 2))
-                let opacity = Double(0.055 + 0.22 * local) * Double(0.78 + 0.42 * breath) * Double(twinkle)
+                let opacity = Double(0.078 + 0.34 * local) * Double(0.78 + 0.42 * breath) * Double(twinkle)
                 let color: Color
 
                 if n3 > 0.78 {
