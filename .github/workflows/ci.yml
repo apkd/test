@@ -180,9 +180,11 @@ jobs:
           - device_name: iPhone SE (3rd generation)
             artifact_suffix: iphone-se-3rd-gen
             capture_phases: all
+            initial_delay_seconds: "1.8"
           - device_name: iPad mini (A17 Pro)
             artifact_suffix: ipad-mini-a17-pro
             capture_phases: full
+            initial_delay_seconds: "3.0"
 
     steps:
       - name: Check out repository
@@ -308,7 +310,7 @@ jobs:
           logs_dir="$RUNNER_TEMP/app-smoke-logs"
           results="$RUNNER_TEMP/app-smoke-results.tsv"
           capture_phases="${{ matrix.capture_phases }}"
-          initial_delay_seconds="1.8"
+          initial_delay_seconds="${{ matrix.initial_delay_seconds }}"
           transition_delay_seconds="0.24"
           screenshot_timeout_seconds="90"
           smoke_file_name="meditation-smoke-panel.txt"
