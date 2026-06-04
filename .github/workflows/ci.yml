@@ -184,7 +184,7 @@ jobs:
           - device_name: iPad mini (A17 Pro)
             artifact_suffix: ipad-mini-a17-pro
             capture_phases: full
-            initial_delay_seconds: "3.0"
+            initial_delay_seconds: "4.2"
 
     steps:
       - name: Check out repository
