@@ -779,9 +779,10 @@ enum MeditationRenderer {
         let cameraWobble = CGFloat(sin(time * 0.17) * 1.4 + cos(time * 0.11) * 0.9) * motionScale
         let baseSunRadius = min(width, height) * 0.165
         let sunRadius = baseSunRadius * (0.975 + 0.05 * breath)
+        let sunVerticalOffset = baseSunRadius * (0.52 - 0.58 * sunRise)
         let sunCenter = CGPoint(
             x: width * (0.5 + 0.012 * sin(CGFloat(time) * 0.08)),
-            y: horizonY + cameraWobble + height * 0.065 - baseSunRadius * (0.52 + 0.64 * breath)
+            y: horizonY + cameraWobble + sunVerticalOffset
         )
 
         var sky = Path()
@@ -832,9 +833,9 @@ enum MeditationRenderer {
             )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color(red: 1.0, green: 0.82, blue: 0.46).opacity(0.34 + 0.22 * Double(sunRise)),
-                        Color(red: 1.0, green: 0.42, blue: 0.28).opacity(0.16 + 0.12 * Double(sunRise)),
-                        Color(red: 0.74, green: 0.18, blue: 0.34).opacity(0.050 + 0.052 * Double(sunRise)),
+                        Color(red: 1.0, green: 0.78, blue: 0.43).opacity(0.30 + 0.18 * Double(sunRise)),
+                        Color(red: 1.0, green: 0.39, blue: 0.29).opacity(0.14 + 0.10 * Double(sunRise)),
+                        Color(red: 0.74, green: 0.18, blue: 0.34).opacity(0.046 + 0.040 * Double(sunRise)),
                         .clear,
                     ]),
                 center: sunCenter,
@@ -852,13 +853,13 @@ enum MeditationRenderer {
                     width: sunRadius * 4.8,
                     height: sunRadius * 4.8
                 )),
-	                with: .radialGradient(
-	                    Gradient(colors: [
-	                        Color.white.opacity(0.30 + 0.35 * Double(sunRise)),
-	                        Color(red: 1.0, green: 0.82, blue: 0.46).opacity(0.56 + 0.26 * Double(sunRise)),
-	                        Color(red: 0.98, green: 0.42, blue: 0.30).opacity(0.22 + 0.14 * Double(sunRise)),
-	                        .clear,
-	                    ]),
+                with: .radialGradient(
+                    Gradient(colors: [
+                        Color(red: 1.0, green: 0.89, blue: 0.50).opacity(0.16 + 0.18 * Double(sunRise)),
+                        Color(red: 1.0, green: 0.70, blue: 0.39).opacity(0.42 + 0.18 * Double(sunRise)),
+                        Color(red: 0.98, green: 0.42, blue: 0.30).opacity(0.18 + 0.09 * Double(sunRise)),
+                        .clear,
+                    ]),
                     center: sunCenter,
                     startRadius: 0,
                     endRadius: sunRadius * 2.4
@@ -873,18 +874,18 @@ enum MeditationRenderer {
                 width: sunRadius * 2,
                 height: sunRadius * 2
             )),
-	            with: .radialGradient(
-	                Gradient(colors: [
-	                    Color.white,
-	                    Color(red: 1.0, green: 0.95, blue: 0.54),
-	                    Color(red: 1.0, green: 0.70, blue: 0.34),
-	                    Color(red: 0.98, green: 0.44, blue: 0.30),
-	                ]),
-	                center: sunCenter,
-	                startRadius: 0,
-	                endRadius: sunRadius
-	            )
-	        )
+            with: .radialGradient(
+                Gradient(colors: [
+                    Color(red: 1.0, green: 0.88 + 0.05 * Double(sunRise), blue: 0.48),
+                    Color(red: 1.0, green: 0.70 + 0.05 * Double(sunRise), blue: 0.35),
+                    Color(red: 0.98, green: 0.48 + 0.04 * Double(sunRise), blue: 0.30),
+                    Color(red: 0.92 + 0.03 * Double(sunRise), green: 0.34 + 0.04 * Double(sunRise), blue: 0.29),
+                ]),
+                center: CGPoint(x: sunCenter.x, y: sunCenter.y + sunRadius * 0.20),
+                startRadius: 0,
+                endRadius: sunRadius
+            )
+        )
 
         context.drawLayer { layer in
             layer.addFilter(.blur(radius: 1.2))
@@ -897,8 +898,8 @@ enum MeditationRenderer {
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.42 + 0.40 * Double(sunRise)),
-                        Color(red: 1.0, green: 0.92, blue: 0.48).opacity(0.34 + 0.34 * Double(sunRise)),
+                        Color(red: 1.0, green: 0.90, blue: 0.50).opacity(0.16 + 0.24 * Double(sunRise)),
+                        Color(red: 1.0, green: 0.76, blue: 0.36).opacity(0.15 + 0.18 * Double(sunRise)),
                         .clear,
                     ]),
                     center: sunCenter,
@@ -908,23 +909,22 @@ enum MeditationRenderer {
             )
         }
 
-        let waterTopY = horizonY - height * 0.026
+        let waterTopY = horizonY
         var water = Path()
         water.addRect(CGRect(x: 0, y: waterTopY, width: width, height: height - waterTopY))
         let waterTopColor = Color(
-            red: 0.118 + 0.030 * Double(breath),
-            green: 0.092 + 0.024 * Double(breath),
-            blue: 0.190 + 0.040 * Double(breath)
+            red: 0.132 + 0.038 * Double(breath),
+            green: 0.100 + 0.030 * Double(breath),
+            blue: 0.205 + 0.048 * Double(breath)
         )
         context.fill(
             water,
             with: .linearGradient(
                 Gradient(stops: [
-                    .init(color: waterTopColor.opacity(0.0), location: 0.0),
-                    .init(color: waterTopColor.opacity(0.54), location: 0.085),
-                    .init(color: waterTopColor, location: 0.165),
-                    .init(color: Color(red: 0.070, green: 0.058, blue: 0.135), location: 0.48),
-                    .init(color: Color(red: 0.034, green: 0.034, blue: 0.082), location: 1.0),
+                    .init(color: waterTopColor.opacity(0.94), location: 0.0),
+                    .init(color: waterTopColor, location: 0.085),
+                    .init(color: Color(red: 0.080, green: 0.065, blue: 0.150), location: 0.48),
+                    .init(color: Color(red: 0.040, green: 0.042, blue: 0.096), location: 1.0),
                 ]),
                 startPoint: CGPoint(x: width * 0.5, y: waterTopY),
                 endPoint: CGPoint(x: width * 0.5, y: height)
@@ -1646,10 +1646,10 @@ enum MeditationRenderer {
                 let nearHorizon = max(0, 1 - depth)
                 let midTrail = max(0, 1 - abs(depth - 0.37) / 0.46)
                 let y = horizonY + waterHeight * (0.035 + 0.86 * depth)
-                let columnHalf = width * (0.020 + 0.050 * nearHorizon + 0.080 * midTrail)
+                let columnHalf = width * (0.018 + 0.040 * nearHorizon + 0.064 * midTrail)
                 let centerDrift = width * (0.006 + 0.014 * depth) * sin(time * (0.18 + 0.16 * n2) + n1 * pi2)
                 let centerX = sunCenterX + centerDrift + (n0 - 0.5) * columnHalf * (0.56 + 0.40 * depth)
-                let widthBase = width * (0.012 + 0.070 * nearHorizon + 0.040 * midTrail)
+                let widthBase = width * (0.010 + 0.056 * nearHorizon + 0.036 * midTrail)
                 let halfWidth = widthBase * (0.36 + 0.92 * n1) * (0.72 + 0.26 * sin(time * (0.30 + 0.26 * n0) + n2 * pi2))
                 let flicker = glintFlicker(time: time, speed: 0.90 + 1.80 * n2, phase: n1 * pi2, floor: 0.20)
                 let opacity = Double(0.040 + 0.165 * nearHorizon + 0.130 * midTrail)
@@ -1671,7 +1671,7 @@ enum MeditationRenderer {
                 layer.stroke(
                     path,
                     with: .color(color),
-                    style: StrokeStyle(lineWidth: 0.62 + 1.15 * nearHorizon + 0.46 * n0, lineCap: .round, lineJoin: .round)
+                    style: StrokeStyle(lineWidth: 0.52 + 0.86 * nearHorizon + 0.38 * n0, lineCap: .round, lineJoin: .round)
                 )
             }
         }
@@ -1700,18 +1700,18 @@ enum MeditationRenderer {
             let midColumn = max(0, 1 - abs(depth - 0.22) / 0.42)
             let y = horizonY + 4 + depth * waterHeight * 0.84
 
-            let columnBase = 0.026 + 0.190 * nearHorizon + 0.120 * midColumn
+            let columnBase = 0.022 + 0.150 * nearHorizon + 0.092 * midColumn
             let columnHalf = width * columnBase
             let driftPhase = time * (0.36 + 0.34 * n2) + n3 * pi2
             let drift = width * (0.004 + 0.010 * depth) * sin(driftPhase)
             let centerX = sunCenterX + (n1 - 0.5) * columnHalf * 1.55 + drift
 
-            let glintBase = 0.014 + 0.080 * nearHorizon + 0.052 * midColumn
+            let glintBase = 0.012 + 0.060 * nearHorizon + 0.040 * midColumn
             let scalePhase = time * (0.52 + 0.58 * n1) + n2 * pi2
             let widthScale = 0.45 + 0.75 * (0.5 + 0.5 * sin(scalePhase))
             let halfWidth = width * glintBase * (0.36 + 1.02 * n2) * widthScale
             let shimmer = glintFlicker(time: time, speed: 1.10 + 1.95 * n0, phase: n3 * pi2, floor: 0.24)
-            let opacityBase = 0.070 + 0.118 * Double(breath)
+            let opacityBase = 0.058 + 0.102 * Double(breath)
             let depthGain = 0.42 + 0.96 * nearHorizon + 0.72 * midColumn
             let noiseGain = 0.48 + 0.90 * n2
             let opacity = opacityBase * Double(depthGain) * Double(noiseGain) * Double(shimmer)
@@ -1729,7 +1729,7 @@ enum MeditationRenderer {
             let green = 0.34 + 0.24 * Double(nearHorizon)
             let color = Color(red: 1.0, green: green, blue: 0.24).opacity(opacity)
             let style = StrokeStyle(
-                lineWidth: 1.2 + 2.2 * nearHorizon + 0.7 * n0,
+                lineWidth: 0.82 + 1.42 * nearHorizon + 0.52 * n0,
                 lineCap: .round,
                 lineJoin: .round
             )
@@ -1760,7 +1760,7 @@ enum MeditationRenderer {
             let nearHorizon = max(0, 1 - depth)
             let midColumn = max(0, 1 - abs(depth - 0.25) / 0.48)
             let y = horizonY + 5 + depth * waterHeight * 0.90
-            let columnBase = 0.032 + 0.205 * nearHorizon + 0.132 * midColumn
+            let columnBase = 0.024 + 0.150 * nearHorizon + 0.096 * midColumn
             let columnHalf = width * columnBase
             let rowPhase = time * (0.42 + 0.44 * n3) + n2 * pi2
             let rowDrift = width * (0.004 + 0.010 * depth) * sin(rowPhase)
@@ -1772,13 +1772,13 @@ enum MeditationRenderer {
                 let fn0 = pseudoNoise(seed + fragment * 67 + 101)
                 let fn1 = pseudoNoise(seed + fragment * 67 + 119)
                 let offsetX = (fn0 - 0.5) * columnHalf * (0.35 + 0.42 * depth)
-                let widthBase = 0.006 + 0.058 * nearHorizon + 0.034 * midColumn
+                let widthBase = 0.005 + 0.043 * nearHorizon + 0.027 * midColumn
                 let scalePhase = time * (0.70 + 0.72 * fn0) + fn1 * pi2 + f
                 let widthScale = 0.36 + 0.88 * (0.5 + 0.5 * sin(scalePhase))
                 let halfWidth = width * widthBase * (0.30 + 1.10 * fn1) * widthScale / CGFloat(fragmentCount)
                 let phase = n3 * pi2 + f * 0.63
                 let flicker = glintFlicker(time: time, speed: 1.25 + 2.40 * fn1, phase: fn0 * pi2 + f, floor: 0.115)
-                let depthBrightness = 0.042 + 0.180 * Double(nearHorizon) + 0.115 * Double(midColumn)
+                let depthBrightness = 0.034 + 0.142 * Double(nearHorizon) + 0.090 * Double(midColumn)
                 let breathBrightness = 0.86 + 0.78 * Double(breath)
                 let noiseBrightness = 0.58 + 0.84 * Double(fn1)
                 let brightness = depthBrightness * breathBrightness * noiseBrightness * Double(flicker)
@@ -1801,7 +1801,7 @@ enum MeditationRenderer {
                     segments: fn0 > 0.60 ? 3 : 2
                 )
                 let style = StrokeStyle(
-                    lineWidth: 0.55 + 1.65 * nearHorizon + 0.85 * fn1,
+                    lineWidth: 0.42 + 1.15 * nearHorizon + 0.64 * fn1,
                     lineCap: .round,
                     lineJoin: .round
                 )
