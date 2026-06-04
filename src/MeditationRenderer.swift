@@ -814,7 +814,7 @@ enum MeditationRenderer {
             )
         )
 
-        let waterTopY = horizonY - height * 0.014
+        let waterTopY = horizonY - height * 0.026
         var water = Path()
         water.addRect(CGRect(x: 0, y: waterTopY, width: width, height: height - waterTopY))
         let waterTopColor = Color(
@@ -826,8 +826,9 @@ enum MeditationRenderer {
             water,
             with: .linearGradient(
                 Gradient(stops: [
-                    .init(color: waterTopColor.opacity(0.14), location: 0.0),
-                    .init(color: waterTopColor, location: 0.070),
+                    .init(color: waterTopColor.opacity(0.0), location: 0.0),
+                    .init(color: waterTopColor.opacity(0.54), location: 0.085),
+                    .init(color: waterTopColor, location: 0.165),
                     .init(color: Color(red: 0.070, green: 0.058, blue: 0.135), location: 0.48),
                     .init(color: Color(red: 0.034, green: 0.034, blue: 0.082), location: 1.0),
                 ]),
@@ -873,8 +874,8 @@ enum MeditationRenderer {
                 with: .linearGradient(
                     Gradient(colors: [
                         .clear,
-                        Color(red: 1.0, green: 0.39, blue: 0.25).opacity(0.040 + 0.035 * Double(breath)),
-                        Color(red: 0.90, green: 0.25, blue: 0.27).opacity(0.026 + 0.020 * Double(breath)),
+                        Color(red: 1.0, green: 0.52, blue: 0.30).opacity(0.085 + 0.055 * Double(breath)),
+                        Color(red: 0.95, green: 0.33, blue: 0.30).opacity(0.045 + 0.030 * Double(breath)),
                         .clear,
                     ]),
                     startPoint: CGPoint(x: width * 0.5, y: horizonY - height * 0.018),
