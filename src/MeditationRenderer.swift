@@ -31,9 +31,9 @@ enum MeditationRenderer {
         let cyclePhase = CGFloat(snapshot.angle)
         let reversibleFlow = CGFloat(snapshot.breathAmount)
         let continuousTime = CGFloat(time)
-        let familyCount = 4
+        let familyCount = 3
         let strandsPerFamily = reduceMotion ? 4 : 5
-        let sampleCount = reduceMotion ? 38 : 46
+        let sampleCount = reduceMotion ? 34 : 40
         let minSide = min(width, height)
         let spread = (0.62 + 0.54 * breathEase) * motionScale
         let brightness = 0.96 + 0.50 * breathEase
@@ -124,8 +124,8 @@ enum MeditationRenderer {
             let naturalOffset = familyOffset * (0.30 + 0.70 * breathEase)
             let familyNoise = pseudoNoise(familySeed)
             let depth = 0.58 + 0.42 * pseudoNoise(familySeed + 13)
-            let amplitude = 0.060 + 0.026 * pseudoNoise(familySeed + 29) + 0.052 * breathEase
-            let bandWidth = minSide * (0.033 + 0.012 * pseudoNoise(familySeed + 41)) * spread * (0.82 + 0.24 * depth)
+            let amplitude = 0.045 + 0.020 * pseudoNoise(familySeed + 29) + 0.038 * breathEase
+            let bandWidth = minSide * (0.037 + 0.014 * pseudoNoise(familySeed + 41)) * spread * (0.82 + 0.24 * depth)
             // Keep time independent from breath-dependent coefficients: `time * breathEase`
             // makes apparent speed grow with elapsed time. Cycle influence stays sinusoidal
             // so the ribbon field is continuous when the breathing cycle wraps.
@@ -150,12 +150,12 @@ enum MeditationRenderer {
                 let x = -0.115 + 1.235 * progress + xNoise + 0.014 * envelope * macro
                 let crossingPull = sin((progress - 0.5) * .pi)
                 let centerPull = naturalOffset * crossingPull * (0.76 + 0.24 * breathEase) - familyOffset * focus * 0.05
-                let longArc = 0.028 * sin((progress - 0.08) * .pi * 2)
+                let longArc = 0.021 * sin((progress - 0.08) * .pi * 2)
                 let knot = exp(-pow((progress - 0.51) / 0.18, 2))
-                let twist = familySign * knot * 0.092
+                let twist = familySign * knot * 0.052
                     * sin((progress - 0.5) * .pi * 3.0 + CGFloat(family) * 1.17 + familyPhase * 0.76)
                 let y = 0.598
-                    - 0.222 * progress
+                    - 0.214 * progress
                     + centerPull
                     + longArc * envelope
                     + twist
@@ -188,7 +188,7 @@ enum MeditationRenderer {
                     + 0.42 * sin(flow * (2.36 + seed * 0.22) - strandPhase * 0.72 + seed * 8.3)
                 let localSpread = 0.88 + 0.28 * localBreath
                 let waist = 0.34 + 0.66 * pow(abs(progress - 0.5) * 2, 0.72)
-                let braid = knot * bandWidth * 0.46
+                let braid = knot * bandWidth * 0.34
                     * sin((progress - 0.5) * .pi * 4.25 + strandPhase * 1.18 + lane * 2.0 + CGFloat(family) * 0.7)
                 let offset = lane * bandWidth * envelope * localSpread * waist * (1.0 - 0.34 * knot)
                     + braid
@@ -251,8 +251,8 @@ enum MeditationRenderer {
                     LightString(
                         path: smoothPath(through: spine),
                         color: color,
-                        auraWidth: (14.0 + 18.0 * centerWeight + 5.0 * strandSeed) * (0.88 + 0.24 * sustainedBreath),
-                        bodyWidth: (3.2 + 4.1 * centerWeight + 0.9 * strandSeed) * (0.88 + 0.20 * sustainedBreath),
+                        auraWidth: (12.0 + 15.0 * centerWeight + 4.0 * strandSeed) * (0.88 + 0.24 * sustainedBreath),
+                        bodyWidth: (2.8 + 3.5 * centerWeight + 0.7 * strandSeed) * (0.88 + 0.20 * sustainedBreath),
                         coreWidth: (0.42 + 0.92 * centerWeight + 0.14 * strandSeed) * (0.90 + 0.14 * sustainedBreath),
                         auraOpacity: Double(0.018 + 0.022 * centerWeight) * Double(brightness) * Double(frontWeight),
                         bodyOpacity: Double(0.092 + 0.082 * centerWeight) * Double(brightness) * Double(frontWeight),
@@ -288,6 +288,15 @@ enum MeditationRenderer {
                 )
             )
         }
+
+        drawSilkRibbonSheets(
+            in: &context,
+            size: size,
+            breath: breathEase,
+            flow: reversibleFlow,
+            time: time,
+            reduceMotion: reduceMotion
+        )
 
         drawSilkRibbonParticles(
             in: &context,
@@ -455,6 +464,79 @@ enum MeditationRenderer {
         )
     }
 
+    private static func drawSilkRibbonSheets(
+        in context: inout GraphicsContext,
+        size: CGSize,
+        breath: CGFloat,
+        flow: CGFloat,
+        time: TimeInterval,
+        reduceMotion: Bool
+    ) {
+        let width = size.width
+        let height = size.height
+        let minSide = min(width, height)
+        let sheetCount = reduceMotion ? 2 : 4
+        let samples = reduceMotion ? 22 : 30
+        let t = CGFloat(time)
+
+        func sheetPath(index: Int) -> Path {
+            let seed = index * 97 + 6101
+            let n0 = pseudoNoise(seed)
+            let n1 = pseudoNoise(seed + 17)
+            let n2 = pseudoNoise(seed + 31)
+            let phase = flow * (.pi * (0.78 + 0.20 * n0)) + t * (0.010 + 0.006 * n1) + n2 * .pi * 2
+            var upper: [CGPoint] = []
+            var lower: [CGPoint] = []
+
+            for sample in 0...samples {
+                let u = CGFloat(sample) / CGFloat(samples)
+                let edge = pow(max(0, sin(u * .pi)), 0.42)
+                let knot = exp(-pow((u - 0.52) / 0.23, 2))
+                let centerX = width * (-0.12 + 1.24 * u)
+                let centerY = height * (
+                    0.612
+                    - 0.238 * u
+                    + 0.030 * edge * sin(.pi * 2 * (u * 1.16 + 0.10 * CGFloat(index)) + phase)
+                    + 0.014 * edge * sin(.pi * 2 * (u * 2.75 + n1) - phase * 0.62)
+                )
+                let halfHeight = minSide * (0.018 + 0.035 * knot + 0.010 * n0) * (0.88 + 0.24 * breath)
+                let edgeRipple = minSide * 0.008 * edge * sin(.pi * 2 * (u * 3.4 + n2) + phase)
+                let skew = width * 0.010 * edge * (CGFloat(index) - CGFloat(sheetCount - 1) * 0.5)
+
+                upper.append(CGPoint(x: centerX + skew, y: centerY - halfHeight + edgeRipple))
+                lower.append(CGPoint(x: centerX - skew * 0.6, y: centerY + halfHeight - edgeRipple * 0.8))
+            }
+
+            var path = Path()
+            if let first = upper.first {
+                path.move(to: first)
+                for point in upper.dropFirst() {
+                    path.addLine(to: point)
+                }
+                for point in lower.reversed() {
+                    path.addLine(to: point)
+                }
+                path.closeSubpath()
+            }
+            return path
+        }
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 13))
+
+            for index in 0..<sheetCount {
+                let seed = index * 67 + 7103
+                let n0 = pseudoNoise(seed)
+                let cyan = Color(red: 0.32, green: 0.86, blue: 1.0)
+                let violet = Color(red: 0.64, green: 0.46, blue: 1.0)
+                let color = index.isMultiple(of: 2) ? cyan : violet
+                let opacity = (0.040 + 0.018 * Double(n0)) * Double(0.82 + 0.32 * breath)
+
+                layer.fill(sheetPath(index: index), with: .color(color.opacity(opacity)))
+            }
+        }
+    }
+
     private static func drawSilkRibbonKnotLacing(
         in context: inout GraphicsContext,
         size: CGSize,
@@ -466,8 +548,8 @@ enum MeditationRenderer {
     ) {
         let minSide = min(size.width, size.height)
         let t = CGFloat(time)
-        let laces = reduceMotion ? 3 : 6
-        let samples = reduceMotion ? 32 : 46
+        let laces = reduceMotion ? 3 : 4
+        let samples = reduceMotion ? 28 : 36
         let rotation: CGFloat = -0.31
         let cosine = cos(rotation)
         let sine = sin(rotation)
@@ -570,7 +652,7 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let count = reduceMotion ? 4 : 8
+        let count = reduceMotion ? 4 : 6
         let intensity = 0.86 + 0.52 * breath
 
         context.drawLayer { layer in
@@ -770,7 +852,7 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let count = reduceMotion ? 48 : 126
+        let count = reduceMotion ? 42 : 92
         let t = CGFloat(time)
 
         context.drawLayer { layer in
@@ -829,7 +911,7 @@ enum MeditationRenderer {
     ) {
         let width = size.width
         let height = size.height
-        let count = reduceMotion ? 42 : 116
+        let count = reduceMotion ? 38 : 88
         let t = CGFloat(time)
 
         context.drawLayer { layer in
