@@ -179,8 +179,10 @@ jobs:
         include:
           - device_name: iPhone SE (3rd generation)
             artifact_suffix: iphone-se-3rd-gen
+            capture_phases: all
           - device_name: iPad mini (A17 Pro)
             artifact_suffix: ipad-mini-a17-pro
+            capture_phases: full
 
     steps:
       - name: Check out repository
@@ -305,6 +307,7 @@ jobs:
           screenshots_dir="app-smoke-screenshots-${{ matrix.artifact_suffix }}"
           logs_dir="$RUNNER_TEMP/app-smoke-logs"
           results="$RUNNER_TEMP/app-smoke-results.tsv"
+          capture_phases="${{ matrix.capture_phases }}"
           initial_delay_seconds="1.8"
           transition_delay_seconds="0.24"
           screenshot_timeout_seconds="90"
@@ -395,9 +398,13 @@ jobs:
             local mode="$1"
             local title="$2"
 
-            set_mode_phase "$mode" "$title" "inhale" "0.250" || return 1
-            set_mode_phase "$mode" "$title" "full" "0.500" || return 1
-            set_mode_phase "$mode" "$title" "exhale" "0.850" || return 1
+            if [[ "$capture_phases" == "full" ]]; then
+              set_mode_phase "$mode" "$title" "full" "0.500" || return 1
+            else
+              set_mode_phase "$mode" "$title" "inhale" "0.250" || return 1
+              set_mode_phase "$mode" "$title" "full" "0.500" || return 1
+              set_mode_phase "$mode" "$title" "exhale" "0.850" || return 1
+            fi
           }
 
           overall=0
@@ -444,7 +451,11 @@ jobs:
             echo
             echo "Device: \`${{ matrix.device_name }}\`"
             echo
-            echo "The app is launched once, then each panel is selected through an env-gated smoke control file. Animation panels are captured at inhale, full-breath, and exhale cycle positions."
+            if [[ "$capture_phases" == "full" ]]; then
+              echo "The app is launched once, then each panel is selected through an env-gated smoke control file. Animation panels are captured at the full-breath cycle position."
+            else
+              echo "The app is launched once, then each panel is selected through an env-gated smoke control file. Animation panels are captured at inhale, full-breath, and exhale cycle positions."
+            fi
             echo
             echo "Screenshots are uploaded as flat PNG files in the \`app-smoke-screenshots-${{ matrix.artifact_suffix }}\` artifact."
             echo
