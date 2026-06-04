@@ -80,11 +80,31 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      - name: Select package simulator
+      - name: Select package scheme and simulator
         id: settings
         shell: bash
         run: |
           set -euo pipefail
+
+          schemes_json="$(xcodebuild -list -json)"
+          scheme="$(
+            printf '%s' "$schemes_json" |
+              jq -r '
+                (.project.schemes // .workspace.schemes // []) as $schemes
+                | (
+                    $schemes
+                    | map(select(. == "TestApp-Package" or . == "TestApp"))
+                    | .[0]
+                  )
+                  // $schemes[0]
+                  // empty
+              '
+          )"
+
+          if [[ -z "$scheme" ]]; then
+            echo "No xcodebuild scheme found." >&2
+            exit 1
+          fi
 
           simulator_id="$(
             xcrun simctl list devices available -j |
@@ -120,6 +140,7 @@ jobs:
             exit 1
           fi
 
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
           echo "simulator_id=$simulator_id" >> "$GITHUB_OUTPUT"
           xcrun simctl boot "$simulator_id" >/dev/null 2>&1 || true
 
@@ -131,7 +152,7 @@ jobs:
           xcodebuild test \
             -derivedDataPath .derived-data/package-tests \
             -enableCodeCoverage NO \
-            -scheme "TestApp-Package" \
+            -scheme "${{ steps.settings.outputs.scheme }}" \
             -destination "$destination" \
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO \
