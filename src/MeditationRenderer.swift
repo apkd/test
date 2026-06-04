@@ -887,42 +887,100 @@ enum MeditationRenderer {
 
         context.drawLayer { layer in
             layer.addFilter(.blur(radius: 1.7))
-
-            for index in 0..<96 {
-                let seed = index * 41 + 113
-                let n0 = pseudoNoise(seed)
-                let n1 = pseudoNoise(seed + 7)
-                let n2 = pseudoNoise(seed + 17)
-                let n3 = pseudoNoise(seed + 31)
-                let depth = (CGFloat(index) + 0.45 * n0) / 96
-                let y = horizonY + 4 + depth * waterHeight * 0.84
-                let nearHorizon = max(0, 1 - depth)
-                let midColumn = max(0, 1 - abs(depth - 0.22) / 0.42)
-                let columnHalf = width * (0.020 + 0.155 * nearHorizon + 0.090 * midColumn)
-                let centerX = sunCenterX
-                    + (n1 - 0.5) * columnHalf * 1.55
-                    + width * 0.010 * sin(t * (0.035 + 0.030 * n2) + n3 * .pi * 2)
-                let halfWidth = width * (0.012 + 0.060 * nearHorizon + 0.038 * midColumn) * (0.40 + 0.90 * n2)
-                let shimmer = 0.62 + 0.38 * (0.5 + 0.5 * sin(t * (0.23 + 0.22 * n0) + n3 * .pi * 2))
-                let opacity = (0.070 + 0.120 * Double(breath))
-                    * Double(0.34 + 0.86 * nearHorizon + 0.62 * midColumn)
-                    * Double(0.48 + 0.90 * n2)
-                    * Double(shimmer)
-
-                layer.stroke(
-                    sunsetGlintPath(
-                        startX: centerX - halfWidth,
-                        endX: centerX + halfWidth,
-                        y: y,
-                        amplitude: 0.55 + 2.7 * depth * (0.45 + n1),
-                        phase: t * (0.050 + 0.045 * n0) + n3 * .pi * 2,
-                        segments: n2 > 0.58 ? 3 : 2
-                    ),
-                    with: .color(Color(red: 1.0, green: 0.34 + 0.24 * Double(nearHorizon), blue: 0.24).opacity(opacity)),
-                    style: StrokeStyle(lineWidth: 1.2 + 2.2 * nearHorizon + 0.7 * n0, lineCap: .round, lineJoin: .round)
-                )
-            }
+            drawBlurredSunsetReflection(
+                in: &layer,
+                width: width,
+                waterHeight: waterHeight,
+                horizonY: horizonY,
+                breath: breath,
+                time: t,
+                sunCenterX: sunCenterX
+            )
         }
+
+        drawSharpSunsetReflection(
+            in: &context,
+            width: width,
+            waterHeight: waterHeight,
+            horizonY: horizonY,
+            breath: breath,
+            time: t,
+            sunCenterX: sunCenterX
+        )
+    }
+
+    private static func drawBlurredSunsetReflection(
+        in context: inout GraphicsContext,
+        width: CGFloat,
+        waterHeight: CGFloat,
+        horizonY: CGFloat,
+        breath: CGFloat,
+        time: CGFloat,
+        sunCenterX: CGFloat
+    ) {
+        let total = CGFloat(96)
+        let pi2 = CGFloat.pi * 2
+
+        for index in 0..<96 {
+            let seed = index * 41 + 113
+            let n0 = pseudoNoise(seed)
+            let n1 = pseudoNoise(seed + 7)
+            let n2 = pseudoNoise(seed + 17)
+            let n3 = pseudoNoise(seed + 31)
+            let depth = (CGFloat(index) + n0 * 0.45) / total
+            let nearHorizon = max(0, 1 - depth)
+            let midColumn = max(0, 1 - abs(depth - 0.22) / 0.42)
+            let y = horizonY + 4 + depth * waterHeight * 0.84
+
+            let columnBase = 0.020 + 0.155 * nearHorizon + 0.090 * midColumn
+            let columnHalf = width * columnBase
+            let driftPhase = time * (0.035 + 0.030 * n2) + n3 * pi2
+            let drift = width * 0.010 * sin(driftPhase)
+            let centerX = sunCenterX + (n1 - 0.5) * columnHalf * 1.55 + drift
+
+            let glintBase = 0.012 + 0.060 * nearHorizon + 0.038 * midColumn
+            let halfWidth = width * glintBase * (0.40 + 0.90 * n2)
+            let shimmerPhase = time * (0.23 + 0.22 * n0) + n3 * pi2
+            let shimmerWave = 0.5 + 0.5 * sin(shimmerPhase)
+            let shimmer = 0.62 + 0.38 * shimmerWave
+            let opacityBase = 0.070 + 0.120 * Double(breath)
+            let depthGain = 0.34 + 0.86 * nearHorizon + 0.62 * midColumn
+            let noiseGain = 0.48 + 0.90 * n2
+            let opacity = opacityBase * Double(depthGain) * Double(noiseGain) * Double(shimmer)
+
+            let amplitude = 0.55 + 2.7 * depth * (0.45 + n1)
+            let phase = time * (0.050 + 0.045 * n0) + n3 * pi2
+            let path = sunsetGlintPath(
+                startX: centerX - halfWidth,
+                endX: centerX + halfWidth,
+                y: y,
+                amplitude: amplitude,
+                phase: phase,
+                segments: n2 > 0.58 ? 3 : 2
+            )
+            let green = 0.34 + 0.24 * Double(nearHorizon)
+            let color = Color(red: 1.0, green: green, blue: 0.24).opacity(opacity)
+            let style = StrokeStyle(
+                lineWidth: 1.2 + 2.2 * nearHorizon + 0.7 * n0,
+                lineCap: .round,
+                lineJoin: .round
+            )
+
+            context.stroke(path, with: .color(color), style: style)
+        }
+    }
+
+    private static func drawSharpSunsetReflection(
+        in context: inout GraphicsContext,
+        width: CGFloat,
+        waterHeight: CGFloat,
+        horizonY: CGFloat,
+        breath: CGFloat,
+        time: CGFloat,
+        sunCenterX: CGFloat
+    ) {
+        let total = CGFloat(150)
+        let pi2 = CGFloat.pi * 2
 
         for index in 0..<150 {
             let seed = index * 43 + 227
@@ -930,12 +988,14 @@ enum MeditationRenderer {
             let n1 = pseudoNoise(seed + 13)
             let n2 = pseudoNoise(seed + 29)
             let n3 = pseudoNoise(seed + 41)
-            let depth = (CGFloat(index) + 0.5 * n0) / 150
+            let depth = (CGFloat(index) + 0.5 * n0) / total
             let nearHorizon = max(0, 1 - depth)
             let midColumn = max(0, 1 - abs(depth - 0.25) / 0.48)
             let y = horizonY + 5 + depth * waterHeight * 0.90
-            let columnHalf = width * (0.026 + 0.165 * nearHorizon + 0.105 * midColumn)
-            let rowDrift = width * 0.012 * sin(t * (0.030 + 0.040 * n3) + n2 * .pi * 2)
+            let columnBase = 0.026 + 0.165 * nearHorizon + 0.105 * midColumn
+            let columnHalf = width * columnBase
+            let rowPhase = time * (0.030 + 0.040 * n3) + n2 * pi2
+            let rowDrift = width * 0.012 * sin(rowPhase)
             let centerX = sunCenterX + rowDrift + (n1 - 0.5) * columnHalf * 1.85
             let fragmentCount = n2 > 0.80 ? 3 : (n2 > 0.46 ? 2 : 1)
 
@@ -944,16 +1004,16 @@ enum MeditationRenderer {
                 let fn0 = pseudoNoise(seed + fragment * 67 + 101)
                 let fn1 = pseudoNoise(seed + fragment * 67 + 119)
                 let offsetX = (fn0 - 0.5) * columnHalf * (0.35 + 0.42 * depth)
-                let halfWidth = width
-                    * (0.006 + 0.048 * nearHorizon + 0.028 * midColumn)
-                    * (0.35 + 1.15 * fn1)
-                    / CGFloat(fragmentCount)
-                let phase = t * (0.055 + 0.050 * n0) + n3 * .pi * 2 + f * 0.63
-                let flicker = 0.55 + 0.45 * (0.5 + 0.5 * sin(t * (0.28 + 0.30 * fn1) + fn0 * .pi * 2))
-                let brightness = (0.040 + 0.160 * Double(nearHorizon) + 0.095 * Double(midColumn))
-                    * (0.70 + 0.82 * Double(breath))
-                    * Double(0.58 + 0.84 * fn1)
-                    * Double(flicker)
+                let widthBase = 0.006 + 0.048 * nearHorizon + 0.028 * midColumn
+                let halfWidth = width * widthBase * (0.35 + 1.15 * fn1) / CGFloat(fragmentCount)
+                let phase = time * (0.055 + 0.050 * n0) + n3 * pi2 + f * 0.63
+                let flickerPhase = time * (0.28 + 0.30 * fn1) + fn0 * pi2
+                let flickerWave = 0.5 + 0.5 * sin(flickerPhase)
+                let flicker = 0.55 + 0.45 * flickerWave
+                let depthBrightness = 0.040 + 0.160 * Double(nearHorizon) + 0.095 * Double(midColumn)
+                let breathBrightness = 0.70 + 0.82 * Double(breath)
+                let noiseBrightness = 0.58 + 0.84 * Double(fn1)
+                let brightness = depthBrightness * breathBrightness * noiseBrightness * Double(flicker)
                 let color: Color
 
                 if n3 > 0.78 && depth < 0.46 {
@@ -964,18 +1024,21 @@ enum MeditationRenderer {
                     color = Color(red: 1.0, green: 0.23 + 0.12 * Double(fn0), blue: 0.24 + 0.08 * Double(fn1)).opacity(brightness * 0.78)
                 }
 
-                context.stroke(
-                    sunsetGlintPath(
-                        startX: centerX + offsetX - halfWidth,
-                        endX: centerX + offsetX + halfWidth,
-                        y: y + (fn1 - 0.5) * (1.0 + 2.6 * depth),
-                        amplitude: 0.30 + 1.9 * depth * (0.45 + fn0),
-                        phase: phase,
-                        segments: fn0 > 0.60 ? 3 : 2
-                    ),
-                    with: .color(color),
-                    style: StrokeStyle(lineWidth: 0.55 + 1.65 * nearHorizon + 0.85 * fn1, lineCap: .round, lineJoin: .round)
+                let path = sunsetGlintPath(
+                    startX: centerX + offsetX - halfWidth,
+                    endX: centerX + offsetX + halfWidth,
+                    y: y + (fn1 - 0.5) * (1.0 + 2.6 * depth),
+                    amplitude: 0.30 + 1.9 * depth * (0.45 + fn0),
+                    phase: phase,
+                    segments: fn0 > 0.60 ? 3 : 2
                 )
+                let style = StrokeStyle(
+                    lineWidth: 0.55 + 1.65 * nearHorizon + 0.85 * fn1,
+                    lineCap: .round,
+                    lineJoin: .round
+                )
+
+                context.stroke(path, with: .color(color), style: style)
             }
         }
     }
