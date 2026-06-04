@@ -180,8 +180,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - device_name: iPhone 17
-            artifact_suffix: iphone-17
+          - device_name: iPhone 16e
+            artifact_suffix: iphone-16e
           - device_name: iPhone SE (3rd generation)
             artifact_suffix: iphone-se-3rd-gen
           - device_name: iPad mini (A17 Pro)
@@ -314,6 +314,7 @@ jobs:
           results="$RUNNER_TEMP/app-smoke-results.tsv"
           initial_delay_seconds="1.8"
           transition_delay_seconds="0.24"
+          screenshot_timeout_seconds="90"
           smoke_file_name="meditation-smoke-panel.txt"
 
           rm -rf "$screenshots_dir"
@@ -325,11 +326,41 @@ jobs:
             printf '%s\t%s\n' "$1" "$2" >> "$results"
           }
 
+          run_with_timeout() {
+            local seconds="$1"
+            shift
+
+            "$@" &
+            local command_pid="$!"
+
+            (
+              sleep "$seconds"
+
+              if kill -0 "$command_pid" 2>/dev/null; then
+                echo "Timed out after ${seconds}s: $*" >&2
+                kill -TERM "$command_pid" 2>/dev/null || true
+                sleep 2
+                kill -KILL "$command_pid" 2>/dev/null || true
+              fi
+            ) &
+            local watchdog_pid="$!"
+            local status=0
+
+            wait "$command_pid" || status="$?"
+            kill "$watchdog_pid" 2>/dev/null || true
+            wait "$watchdog_pid" 2>/dev/null || true
+            return "$status"
+          }
+
           capture_screenshot() {
             local file="$1"
 
             for attempt in 1 2 3; do
-              if xcrun simctl io "$simulator_id" screenshot "$file"; then
+              echo "Capturing screenshot attempt ${attempt}: $file"
+
+              if run_with_timeout \
+                "$screenshot_timeout_seconds" \
+                xcrun simctl io "$simulator_id" screenshot "$file"; then
                 return 0
               fi
 
