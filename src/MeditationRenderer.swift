@@ -705,6 +705,7 @@ enum MeditationRenderer {
         let motionScale: CGFloat = reduceMotion ? 0.35 : 1
         let breath = CGFloat(snapshot.breathAmount) * motionScale
         let skyBreath = CGFloat(BreathingTimeline.smoothstep(snapshot.breathAmount))
+        let sunRise = pow(skyBreath, 1.15)
         let horizonY = height * 0.60
         let cameraWobble = CGFloat(sin(time * 0.17) * 1.4 + cos(time * 0.11) * 0.9) * motionScale
         let baseSunRadius = min(width, height) * 0.165
@@ -762,9 +763,9 @@ enum MeditationRenderer {
             )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color(red: 1.0, green: 0.72, blue: 0.42).opacity(0.30 + 0.12 * Double(breath)),
-                        Color(red: 0.98, green: 0.36, blue: 0.29).opacity(0.14 + 0.08 * Double(breath)),
-                        Color(red: 0.74, green: 0.18, blue: 0.34).opacity(0.045 + 0.04 * Double(breath)),
+                        Color(red: 1.0, green: 0.82, blue: 0.46).opacity(0.34 + 0.22 * Double(sunRise)),
+                        Color(red: 1.0, green: 0.42, blue: 0.28).opacity(0.16 + 0.12 * Double(sunRise)),
+                        Color(red: 0.74, green: 0.18, blue: 0.34).opacity(0.050 + 0.052 * Double(sunRise)),
                         .clear,
                     ]),
                 center: sunCenter,
@@ -782,12 +783,13 @@ enum MeditationRenderer {
                     width: sunRadius * 4.8,
                     height: sunRadius * 4.8
                 )),
-                with: .radialGradient(
-                    Gradient(colors: [
-                        Color(red: 1.0, green: 0.80, blue: 0.48).opacity(0.62 + 0.16 * Double(breath)),
-                        Color(red: 0.98, green: 0.42, blue: 0.30).opacity(0.20 + 0.10 * Double(breath)),
-                        .clear,
-                    ]),
+	                with: .radialGradient(
+	                    Gradient(colors: [
+	                        Color.white.opacity(0.30 + 0.35 * Double(sunRise)),
+	                        Color(red: 1.0, green: 0.82, blue: 0.46).opacity(0.56 + 0.26 * Double(sunRise)),
+	                        Color(red: 0.98, green: 0.42, blue: 0.30).opacity(0.22 + 0.14 * Double(sunRise)),
+	                        .clear,
+	                    ]),
                     center: sunCenter,
                     startRadius: 0,
                     endRadius: sunRadius * 2.4
@@ -802,17 +804,40 @@ enum MeditationRenderer {
                 width: sunRadius * 2,
                 height: sunRadius * 2
             )),
-            with: .radialGradient(
-                Gradient(colors: [
-                    Color(red: 1.0, green: 0.93, blue: 0.60),
-                    Color(red: 1.0, green: 0.66, blue: 0.38),
-                    Color(red: 0.98, green: 0.48, blue: 0.34),
-                ]),
-                center: sunCenter,
-                startRadius: 0,
-                endRadius: sunRadius
+	            with: .radialGradient(
+	                Gradient(colors: [
+	                    Color.white,
+	                    Color(red: 1.0, green: 0.95, blue: 0.54),
+	                    Color(red: 1.0, green: 0.70, blue: 0.34),
+	                    Color(red: 0.98, green: 0.44, blue: 0.30),
+	                ]),
+	                center: sunCenter,
+	                startRadius: 0,
+	                endRadius: sunRadius
+	            )
+	        )
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 1.2))
+            layer.fill(
+                Path(ellipseIn: CGRect(
+                    x: sunCenter.x - sunRadius * 0.70,
+                    y: sunCenter.y - sunRadius * 0.70,
+                    width: sunRadius * 1.40,
+                    height: sunRadius * 1.40
+                )),
+                with: .radialGradient(
+                    Gradient(colors: [
+                        Color.white.opacity(0.42 + 0.40 * Double(sunRise)),
+                        Color(red: 1.0, green: 0.92, blue: 0.48).opacity(0.34 + 0.34 * Double(sunRise)),
+                        .clear,
+                    ]),
+                    center: sunCenter,
+                    startRadius: 0,
+                    endRadius: sunRadius * 0.70
+                )
             )
-        )
+        }
 
         let waterTopY = horizonY - height * 0.026
         var water = Path()
