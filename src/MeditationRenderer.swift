@@ -131,7 +131,7 @@ enum MeditationRenderer {
             // so the ribbon field is continuous when the breathing cycle wraps.
             let familyPhase = continuousTime * 0.010 * (0.82 + 0.42 * familyNoise)
                 + CGFloat(family) * 0.17
-                + reversibleFlow * (1.35 + 0.52 * familyNoise)
+                + reversibleFlow * (0.90 + 0.35 * familyNoise)
                 + 0.34 * sin(cyclePhase + familyNoise * 2.7)
                 + 0.14 * sin(2 * cyclePhase + CGFloat(family) * 0.9)
             let rotation = (-0.044 + 0.034 * CGFloat(family))
@@ -236,7 +236,7 @@ enum MeditationRenderer {
                 let isFrontCore = centerWeight > 0.30 || (strand + family) % 7 == 1
                 let pulseCycleOffset = 0.045 * sin(cyclePhase + CGFloat(family) * 0.8 + strandSeed * 4.1)
                     + 0.018 * sin(2 * cyclePhase + strandSeed * 7.3)
-                let pulseTravel = reversibleFlow * (1.12 + 0.36 * strandSeed)
+                let pulseTravel = reversibleFlow * (0.75 + 0.24 * strandSeed)
                     + 0.018 * sin(continuousTime * (0.14 + 0.06 * strandSeed) + strandSeed * 5.2)
                 let pulsePosition = CGFloat(wrappedUnit(
                     Double(pulseTravel)
@@ -483,7 +483,7 @@ enum MeditationRenderer {
             let seed = index * 89 + 4703
             let n0 = pseudoNoise(seed)
             let n1 = pseudoNoise(seed + 17)
-            let phase = flow * (.pi * 2.8 + 0.9 * n0) + t * (0.018 + 0.010 * n0) + n1 * .pi * 2
+            let phase = flow * (.pi * 1.86 + 0.60 * n0) + t * (0.018 + 0.010 * n0) + n1 * .pi * 2
             let width = minSide * (0.145 + 0.030 * n0) * scale
             let height = minSide * (0.034 + 0.020 * n1) * scale
             var points: [CGPoint] = []
@@ -784,7 +784,7 @@ enum MeditationRenderer {
                 let n3 = pseudoNoise(seed + 47)
                 let angle = n0 * .pi * 2
                 let distance = minSide * (0.010 + 0.315 * pow(n1, 1.75)) * (0.84 + 0.28 * breath)
-                let localFlow = flow * (.pi * 2.4 + 1.1 * n2) + t * (0.012 + 0.010 * n2) + n3 * .pi * 2
+                let localFlow = flow * (.pi * 1.60 + 0.74 * n2) + t * (0.012 + 0.010 * n2) + n3 * .pi * 2
                 let diagonal = CGVector(dx: cos(-0.30), dy: sin(-0.30))
                 let spreadX = cos(angle) * distance * (1.48 + 0.35 * n2)
                     + diagonal.dx * minSide * 0.070 * sin(localFlow)
@@ -865,11 +865,11 @@ enum MeditationRenderer {
             let envelope = pow(max(0, sin(progress * .pi)), 0.62)
             let baseX = width * (-0.04 + 1.08 * progress)
             let scatterX = width * (n1 - 0.5) * (0.05 + 0.16 * envelope)
-            let driftPhaseX = flow * (.pi * 2.0 + 0.8 * n2) + time * (0.018 + 0.012 * n2) + n3 * .pi * 2
+            let driftPhaseX = flow * (.pi * 1.34 + 0.54 * n2) + time * (0.018 + 0.012 * n2) + n3 * .pi * 2
             let driftX = width * 0.018 * sin(driftPhaseX)
             let baseY = height * (0.64 - 0.22 * progress)
             let scatterY = height * (n2 - 0.5) * (0.05 + 0.15 * envelope)
-            let driftPhaseY = flow * (.pi * 1.8 + 0.7 * n1) + time * (0.016 + 0.012 * n1) + n0 * .pi * 2
+            let driftPhaseY = flow * (.pi * 1.20 + 0.47 * n1) + time * (0.016 + 0.012 * n1) + n0 * .pi * 2
             let driftY = height * 0.014 * cos(driftPhaseY)
             let x = baseX + scatterX + driftX
             let y = baseY + scatterY + driftY
@@ -908,8 +908,10 @@ enum MeditationRenderer {
         let breath = CGFloat(snapshot.breathAmount) * motionScale
         let skyBreath = CGFloat(BreathingTimeline.smoothstep(snapshot.breathAmount))
         let phaseEase = CGFloat(BreathingTimeline.smoothstep(snapshot.phaseProgress))
-        let inhaleBrightness = snapshot.isInhale ? phaseEase : max(0, 1 - phaseEase) * 0.18
-        let exhaleDarkening = snapshot.isInhale ? CGFloat(0) : phaseEase
+        let inhaleBrightness = snapshot.isInhale ? phaseEase : max(0, 1 - phaseEase)
+        let exhaleDarkening = snapshot.isInhale
+            ? CGFloat(0)
+            : pow(max(0, sin(CGFloat(snapshot.phaseProgress) * .pi)), 0.78)
         let sunBrightness = min(1.42, max(0.72, 0.92 + 0.46 * inhaleBrightness + 0.12 * skyBreath - 0.22 * exhaleDarkening))
         let sunBrightnessDouble = Double(sunBrightness)
         let sunRise = pow(skyBreath, 1.15)
