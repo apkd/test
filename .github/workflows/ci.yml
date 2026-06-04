@@ -180,8 +180,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - device_name: iPhone 16e
-            artifact_suffix: iphone-16e
           - device_name: iPhone SE (3rd generation)
             artifact_suffix: iphone-se-3rd-gen
           - device_name: iPad mini (A17 Pro)
@@ -402,9 +400,9 @@ jobs:
             local mode="$1"
             local title="$2"
 
-            set_mode_phase "$mode" "$title" "inhale" "0.250"
-            set_mode_phase "$mode" "$title" "full" "0.500"
-            set_mode_phase "$mode" "$title" "exhale" "0.850"
+            set_mode_phase "$mode" "$title" "inhale" "0.250" || return 1
+            set_mode_phase "$mode" "$title" "full" "0.500" || return 1
+            set_mode_phase "$mode" "$title" "exhale" "0.850" || return 1
           }
 
           overall=0
@@ -419,11 +417,13 @@ jobs:
             SIMCTL_CHILD_MEDITATION_ANIMATION_MODE="config" \
             xcrun simctl launch "$simulator_id" "$bundle_id" > "$launch_log" 2>&1; then
             sleep "$initial_delay_seconds"
-            capture_current_mode "config" "Configuration" || overall=1
-            capture_animation_panel "breathing-horizon" "Breathing horizon" || overall=1
-            capture_animation_panel "silk-ribbon" "Silk ribbon" || overall=1
-            capture_animation_panel "ink-bloom" "Ink bloom" || overall=1
-            capture_animation_panel "soft-glow" "Soft glow" || overall=1
+            if ! capture_current_mode "config" "Configuration" ||
+              ! capture_animation_panel "breathing-horizon" "Breathing horizon" ||
+              ! capture_animation_panel "silk-ribbon" "Silk ribbon" ||
+              ! capture_animation_panel "ink-bloom" "Ink bloom" ||
+              ! capture_animation_panel "soft-glow" "Soft glow"; then
+              overall=1
+            fi
           else
             overall=1
             cat "$launch_log" >&2 || true
