@@ -876,12 +876,12 @@ enum MeditationRenderer {
             )),
             with: .radialGradient(
                 Gradient(colors: [
-                    Color(red: 1.0, green: 0.94 + 0.02 * Double(sunRise), blue: 0.56),
-                    Color(red: 1.0, green: 0.79 + 0.04 * Double(sunRise), blue: 0.43),
-                    Color(red: 1.0, green: 0.59 + 0.05 * Double(sunRise), blue: 0.34),
-                    Color(red: 0.96 + 0.02 * Double(sunRise), green: 0.42 + 0.05 * Double(sunRise), blue: 0.31),
+                    Color(red: 1.0, green: 0.95 + 0.02 * Double(sunRise), blue: 0.58),
+                    Color(red: 1.0, green: 0.82 + 0.04 * Double(sunRise), blue: 0.46),
+                    Color(red: 1.0, green: 0.66 + 0.05 * Double(sunRise), blue: 0.38),
+                    Color(red: 1.0, green: 0.52 + 0.04 * Double(sunRise), blue: 0.34),
                 ]),
-                center: CGPoint(x: sunCenter.x, y: sunCenter.y + sunRadius * 0.20),
+                center: CGPoint(x: sunCenter.x, y: sunCenter.y + sunRadius * 0.05),
                 startRadius: 0,
                 endRadius: sunRadius
             )
@@ -1646,6 +1646,7 @@ enum MeditationRenderer {
                 let depth = (CGFloat(index) + 0.45 * n0) / CGFloat(count)
                 let nearHorizon = max(0, 1 - depth)
                 let midTrail = max(0, 1 - abs(depth - 0.37) / 0.46)
+                let tailFade = max(0, 1 - max(0, depth - 0.72) / 0.28)
                 let y = horizonY + waterHeight * (0.035 + 0.86 * depth)
                 let columnHalf = width * (0.010 + 0.030 * nearHorizon + 0.040 * midTrail)
                 let centerDrift = width * (0.006 + 0.014 * depth) * sin(time * (0.18 + 0.16 * n2) + n1 * pi2)
@@ -1657,6 +1658,7 @@ enum MeditationRenderer {
                     * Double(0.86 + 0.74 * breath)
                     * Double(0.58 + 0.68 * n1)
                     * Double(flicker)
+                    * Double(0.22 + 0.78 * tailFade)
                 let color = depth < 0.24
                     ? Color(red: 1.0, green: 0.78, blue: 0.36).opacity(opacity)
                     : Color(red: 1.0, green: 0.28 + 0.26 * Double(nearHorizon), blue: 0.22).opacity(opacity * 0.92)
@@ -1699,6 +1701,7 @@ enum MeditationRenderer {
             let depth = (CGFloat(index) + n0 * 0.45) / total
             let nearHorizon = max(0, 1 - depth)
             let midColumn = max(0, 1 - abs(depth - 0.22) / 0.42)
+            let tailFade = max(0, 1 - max(0, depth - 0.70) / 0.30)
             let y = horizonY + 4 + depth * waterHeight * 0.84
 
             let columnBase = 0.014 + 0.092 * nearHorizon + 0.052 * midColumn
@@ -1715,7 +1718,7 @@ enum MeditationRenderer {
             let opacityBase = 0.064 + 0.112 * Double(breath)
             let depthGain = 0.42 + 0.96 * nearHorizon + 0.72 * midColumn
             let noiseGain = 0.48 + 0.90 * n2
-            let opacity = opacityBase * Double(depthGain) * Double(noiseGain) * Double(shimmer)
+            let opacity = opacityBase * Double(depthGain) * Double(noiseGain) * Double(shimmer) * Double(0.20 + 0.80 * tailFade)
 
             let amplitude = 0.55 + 2.7 * depth * (0.45 + n1)
             let phase = n3 * pi2
@@ -1760,6 +1763,7 @@ enum MeditationRenderer {
             let depth = (CGFloat(index) + 0.5 * n0) / total
             let nearHorizon = max(0, 1 - depth)
             let midColumn = max(0, 1 - abs(depth - 0.25) / 0.48)
+            let tailFade = max(0, 1 - max(0, depth - 0.70) / 0.30)
             let y = horizonY + 5 + depth * waterHeight * 0.90
             let columnBase = 0.014 + 0.096 * nearHorizon + 0.052 * midColumn
             let columnHalf = width * columnBase
@@ -1782,7 +1786,7 @@ enum MeditationRenderer {
                 let depthBrightness = 0.038 + 0.158 * Double(nearHorizon) + 0.098 * Double(midColumn)
                 let breathBrightness = 0.86 + 0.78 * Double(breath)
                 let noiseBrightness = 0.58 + 0.84 * Double(fn1)
-                let brightness = depthBrightness * breathBrightness * noiseBrightness * Double(flicker)
+                let brightness = depthBrightness * breathBrightness * noiseBrightness * Double(flicker) * Double(0.18 + 0.82 * tailFade)
                 let color: Color
 
                 if n3 > 0.78 && depth < 0.46 {
