@@ -377,6 +377,7 @@ enum MeditationRenderer {
         let height = size.height
         let motionScale: CGFloat = reduceMotion ? 0.35 : 1
         let breath = CGFloat(snapshot.breathAmount) * motionScale
+        let skyBreath = CGFloat(BreathingTimeline.smoothstep(snapshot.breathAmount))
         let horizonY = height * 0.60
         let cameraWobble = CGFloat(sin(time * 0.17) * 1.4 + cos(time * 0.11) * 0.9) * motionScale
         let baseSunRadius = min(width, height) * 0.15
@@ -392,9 +393,9 @@ enum MeditationRenderer {
             sky,
             with: .linearGradient(
                 Gradient(colors: [
-                    Color(red: 0.14 + 0.08 * Double(breath), green: 0.16, blue: 0.30),
-                    Color(red: 0.35 + 0.14 * Double(breath), green: 0.23 + 0.09 * Double(breath), blue: 0.35),
-                    Color(red: 0.95, green: 0.48 + 0.18 * Double(breath), blue: 0.38).opacity(0.72),
+                    Color(red: 0.070 + 0.180 * Double(skyBreath), green: 0.090 + 0.080 * Double(skyBreath), blue: 0.210 + 0.130 * Double(skyBreath)),
+                    Color(red: 0.210 + 0.300 * Double(skyBreath), green: 0.145 + 0.185 * Double(skyBreath), blue: 0.285 + 0.130 * Double(skyBreath)),
+                    Color(red: 0.720 + 0.270 * Double(skyBreath), green: 0.330 + 0.340 * Double(skyBreath), blue: 0.340 + 0.050 * Double(skyBreath)).opacity(0.58 + 0.22 * Double(skyBreath)),
                 ]),
                 startPoint: CGPoint(x: width * 0.2, y: 0),
                 endPoint: CGPoint(x: width * 0.58, y: horizonY)
@@ -642,6 +643,10 @@ enum MeditationRenderer {
         let height = size.height
         let scale = min(width, height)
         let motionScale: CGFloat = reduceMotion ? 0.30 : 1
+        let fullBreath = CGFloat(snapshot.breathAmount)
+        let breathEase = CGFloat(BreathingTimeline.smoothstep(snapshot.breathAmount))
+        let exhaleDepth = CGFloat(BreathingTimeline.smoothstep(Double(1 - fullBreath)))
+        let glowLevel = 0.56 + 0.44 * breathEase
         let breath = CGFloat(snapshot.breathAmount) * motionScale
         let t = CGFloat(time)
 
@@ -662,11 +667,11 @@ enum MeditationRenderer {
                 startRadius: scale * 0.08,
                 endRadius: scale * (0.48 + 0.10 * breath),
                 colors: [
-                    Color(red: 0.42, green: 0.51, blue: 0.92).opacity(0.12 + 0.045 * Double(breath)),
-                    Color(red: 0.34, green: 0.43, blue: 0.82).opacity(0.105 + 0.036 * Double(breath)),
-                    Color(red: 0.26, green: 0.34, blue: 0.68).opacity(0.083 + 0.030 * Double(breath)),
-                    Color(red: 0.19, green: 0.25, blue: 0.54).opacity(0.060 + 0.024 * Double(breath)),
-                    Color(red: 0.12, green: 0.17, blue: 0.38).opacity(0.035 + 0.016 * Double(breath)),
+                    Color(red: 0.42, green: 0.51, blue: 0.92).opacity((0.11 + 0.055 * Double(breath)) * Double(glowLevel)),
+                    Color(red: 0.34, green: 0.43, blue: 0.82).opacity((0.094 + 0.044 * Double(breath)) * Double(glowLevel)),
+                    Color(red: 0.26, green: 0.34, blue: 0.68).opacity((0.074 + 0.036 * Double(breath)) * Double(glowLevel)),
+                    Color(red: 0.19, green: 0.25, blue: 0.54).opacity((0.052 + 0.028 * Double(breath)) * Double(glowLevel)),
+                    Color(red: 0.12, green: 0.17, blue: 0.38).opacity((0.030 + 0.018 * Double(breath)) * Double(glowLevel)),
                     .clear,
                 ]
             )
@@ -698,7 +703,7 @@ enum MeditationRenderer {
                 )
                 let cool = Color(red: 0.54, green: 0.66, blue: 1.0)
                 let violet = Color(red: 0.42, green: 0.32, blue: 0.78)
-                let opacity = 0.035 + 0.034 * Double(localPulse) + 0.030 * Double(breath)
+                let opacity = (0.030 + 0.030 * Double(localPulse) + 0.036 * Double(breath)) * Double(glowLevel)
 
                 fillRadialEllipse(
                     in: &layer,
@@ -715,7 +720,17 @@ enum MeditationRenderer {
             }
         }
 
-        drawSoftGlowGrain(in: &context, size: size, count: reduceMotion ? 700 : 2_400, alphaScale: reduceMotion ? 1.05 : 1.55)
+        context.fill(
+            Path(CGRect(x: 0, y: 0, width: width, height: height)),
+            with: .color(.black.opacity(0.20 * Double(exhaleDepth)))
+        )
+
+        drawSoftGlowGrain(
+            in: &context,
+            size: size,
+            count: reduceMotion ? 700 : 2_400,
+            alphaScale: (reduceMotion ? 1.05 : 1.55) * (1.0 + 0.28 * Double(exhaleDepth))
+        )
     }
 
     private static func drawSoftGlowGrain(

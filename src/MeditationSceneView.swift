@@ -154,9 +154,14 @@ private struct AmbientBackground: View {
     var body: some View {
         let breathScale = reduceMotion ? 0.04 : 0.15
         let breathAmount = CGFloat(snapshot.breathAmount)
-        let accentOpacity = mode == .silkRibbon
-            ? 0.10 + 0.06 * snapshot.breathAmount
-            : 0.34 + 0.16 * snapshot.breathAmount
+        let accentOpacity: Double = switch mode {
+        case .silkRibbon:
+            0.10 + 0.06 * snapshot.breathAmount
+        case .softGlow:
+            0.12 + 0.24 * snapshot.breathAmount
+        default:
+            0.34 + 0.16 * snapshot.breathAmount
+        }
 
         ZStack {
             LinearGradient(
@@ -202,10 +207,11 @@ private struct AmbientBackground: View {
                 Color(red: 0.015, green: 0.015, blue: 0.04),
             ]
         case .softGlow:
+            let glow = Double(BreathingTimeline.smoothstep(Double(breathAmount)))
             return [
-                Color(red: 0.010, green: 0.014, blue: 0.030),
-                Color(red: 0.030, green: 0.042, blue: 0.080),
-                Color(red: 0.006, green: 0.009, blue: 0.022),
+                Self.color(red: 0.003, green: 0.005, blue: 0.014, warmRed: 0.014, warmGreen: 0.020, warmBlue: 0.046, amount: glow),
+                Self.color(red: 0.010, green: 0.016, blue: 0.038, warmRed: 0.040, warmGreen: 0.054, warmBlue: 0.110, amount: glow),
+                Self.color(red: 0.002, green: 0.003, blue: 0.010, warmRed: 0.010, warmGreen: 0.014, warmBlue: 0.032, amount: glow),
             ]
         }
     }
