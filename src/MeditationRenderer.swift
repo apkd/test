@@ -619,9 +619,9 @@ enum MeditationRenderer {
             water,
             with: .linearGradient(
                 Gradient(colors: [
-                    Color(red: 0.072 + 0.020 * Double(breath), green: 0.064 + 0.014 * Double(breath), blue: 0.145 + 0.028 * Double(breath)),
-                    Color(red: 0.036, green: 0.034, blue: 0.092),
-                    Color(red: 0.012, green: 0.018, blue: 0.052),
+                    Color(red: 0.095 + 0.026 * Double(breath), green: 0.078 + 0.020 * Double(breath), blue: 0.165 + 0.034 * Double(breath)),
+                    Color(red: 0.052, green: 0.046, blue: 0.110),
+                    Color(red: 0.022, green: 0.026, blue: 0.068),
                 ]),
                 startPoint: CGPoint(x: width * 0.5, y: horizonY),
                 endPoint: CGPoint(x: width * 0.5, y: height)
@@ -632,8 +632,8 @@ enum MeditationRenderer {
             water,
             with: .radialGradient(
                 Gradient(colors: [
-                    Color(red: 0.95, green: 0.300, blue: 0.205).opacity(0.12 + 0.13 * Double(breath)),
-                    Color(red: 0.55, green: 0.100, blue: 0.210).opacity(0.060 + 0.060 * Double(breath)),
+                    Color(red: 0.96, green: 0.330, blue: 0.220).opacity(0.15 + 0.15 * Double(breath)),
+                    Color(red: 0.62, green: 0.130, blue: 0.230).opacity(0.080 + 0.070 * Double(breath)),
                     .clear,
                 ]),
                 center: CGPoint(x: sunCenter.x, y: horizonY + (height - horizonY) * 0.10),
@@ -1162,8 +1162,8 @@ enum MeditationRenderer {
             let scalePhase = time * (0.52 + 0.58 * n1) + n2 * pi2
             let widthScale = 0.45 + 0.75 * (0.5 + 0.5 * sin(scalePhase))
             let halfWidth = width * glintBase * (0.32 + 0.88 * n2) * widthScale
-            let shimmer = glintFlicker(time: time, speed: 1.10 + 1.95 * n0, phase: n3 * pi2, floor: 0.10)
-            let opacityBase = 0.045 + 0.100 * Double(breath)
+            let shimmer = glintFlicker(time: time, speed: 1.10 + 1.95 * n0, phase: n3 * pi2, floor: 0.18)
+            let opacityBase = 0.052 + 0.108 * Double(breath)
             let depthGain = 0.34 + 0.86 * nearHorizon + 0.62 * midColumn
             let noiseGain = 0.48 + 0.90 * n2
             let opacity = opacityBase * Double(depthGain) * Double(noiseGain) * Double(shimmer)
@@ -1229,8 +1229,8 @@ enum MeditationRenderer {
                 let widthScale = 0.36 + 0.88 * (0.5 + 0.5 * sin(scalePhase))
                 let halfWidth = width * widthBase * (0.30 + 1.10 * fn1) * widthScale / CGFloat(fragmentCount)
                 let phase = n3 * pi2 + f * 0.63
-                let flicker = glintFlicker(time: time, speed: 1.25 + 2.40 * fn1, phase: fn0 * pi2 + f, floor: 0.045)
-                let depthBrightness = 0.022 + 0.142 * Double(nearHorizon) + 0.086 * Double(midColumn)
+                let flicker = glintFlicker(time: time, speed: 1.25 + 2.40 * fn1, phase: fn0 * pi2 + f, floor: 0.070)
+                let depthBrightness = 0.030 + 0.154 * Double(nearHorizon) + 0.096 * Double(midColumn)
                 let breathBrightness = 0.70 + 0.82 * Double(breath)
                 let noiseBrightness = 0.58 + 0.84 * Double(fn1)
                 let brightness = depthBrightness * breathBrightness * noiseBrightness * Double(flicker)
@@ -1314,7 +1314,7 @@ enum MeditationRenderer {
 
                 layer.stroke(
                     path,
-                    with: .color(Color(red: 0.42, green: 0.28 + 0.08 * Double(1 - depth), blue: 0.48 + 0.10 * Double(1 - depth)).opacity(opacity)),
+                    with: .color(Color(red: 0.50, green: 0.32 + 0.09 * Double(1 - depth), blue: 0.54 + 0.11 * Double(1 - depth)).opacity(opacity)),
                     style: StrokeStyle(lineWidth: 0.55 + 0.65 * depth + 0.45 * n0, lineCap: .round, lineJoin: .round)
                 )
             }
@@ -1342,7 +1342,7 @@ enum MeditationRenderer {
 
             context.stroke(
                 path,
-                with: .color(Color(red: 1.0, green: 0.30 + 0.24 * Double(1 - depth), blue: 0.24).opacity((0.014 + 0.050 * Double(breath)) * Double(0.28 + 0.72 * n0))),
+                with: .color(Color(red: 1.0, green: 0.34 + 0.25 * Double(1 - depth), blue: 0.25).opacity((0.018 + 0.058 * Double(breath)) * Double(0.28 + 0.72 * n0))),
                 style: StrokeStyle(lineWidth: 0.45 + 0.75 * n2, lineCap: .round, lineJoin: .round)
             )
         }
