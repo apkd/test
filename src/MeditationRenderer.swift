@@ -872,9 +872,9 @@ enum MeditationRenderer {
                 Path(CGRect(x: -width * 0.02, y: horizonY - height * 0.018, width: width * 1.04, height: height * 0.050)),
                 with: .linearGradient(
                     Gradient(colors: [
-                        Color(red: 1.0, green: 0.39, blue: 0.25).opacity(0.050 + 0.040 * Double(breath)),
-                        Color(red: 0.13, green: 0.10, blue: 0.20).opacity(0.28),
-                        Color(red: 0.06, green: 0.05, blue: 0.12).opacity(0.16),
+                        .clear,
+                        Color(red: 1.0, green: 0.39, blue: 0.25).opacity(0.040 + 0.035 * Double(breath)),
+                        Color(red: 0.90, green: 0.25, blue: 0.27).opacity(0.026 + 0.020 * Double(breath)),
                         .clear,
                     ]),
                     startPoint: CGPoint(x: width * 0.5, y: horizonY - height * 0.018),
@@ -1331,8 +1331,8 @@ enum MeditationRenderer {
         drawSoftGlowGrain(
             in: &context,
             size: size,
-            count: reduceMotion ? 1_200 : 4_800,
-            alphaScale: (reduceMotion ? 1.05 : 1.72) * (1.0 + 0.42 * Double(exhaleDepth))
+            count: reduceMotion ? 800 : 2_800,
+            alphaScale: (reduceMotion ? 1.10 : 1.85) * (1.0 + 0.42 * Double(exhaleDepth))
         )
     }
 
