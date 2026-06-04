@@ -814,17 +814,24 @@ enum MeditationRenderer {
             )
         )
 
+        let waterTopY = horizonY - height * 0.014
         var water = Path()
-        water.addRect(CGRect(x: 0, y: horizonY, width: width, height: height - horizonY))
+        water.addRect(CGRect(x: 0, y: waterTopY, width: width, height: height - waterTopY))
+        let waterTopColor = Color(
+            red: 0.118 + 0.030 * Double(breath),
+            green: 0.092 + 0.024 * Double(breath),
+            blue: 0.190 + 0.040 * Double(breath)
+        )
         context.fill(
             water,
             with: .linearGradient(
-                Gradient(colors: [
-                    Color(red: 0.118 + 0.030 * Double(breath), green: 0.092 + 0.024 * Double(breath), blue: 0.190 + 0.040 * Double(breath)),
-                    Color(red: 0.070, green: 0.058, blue: 0.135),
-                    Color(red: 0.034, green: 0.034, blue: 0.082),
+                Gradient(stops: [
+                    .init(color: waterTopColor.opacity(0.14), location: 0.0),
+                    .init(color: waterTopColor, location: 0.070),
+                    .init(color: Color(red: 0.070, green: 0.058, blue: 0.135), location: 0.48),
+                    .init(color: Color(red: 0.034, green: 0.034, blue: 0.082), location: 1.0),
                 ]),
-                startPoint: CGPoint(x: width * 0.5, y: horizonY),
+                startPoint: CGPoint(x: width * 0.5, y: waterTopY),
                 endPoint: CGPoint(x: width * 0.5, y: height)
             )
         )
@@ -843,8 +850,68 @@ enum MeditationRenderer {
             )
         )
 
+        drawSunsetHorizonBlend(in: &context, size: size, horizonY: horizonY, breath: breath, time: time)
         drawOceanSurface(in: &context, size: size, horizonY: horizonY, breath: breath, time: time, sunCenterX: sunCenter.x)
         drawReflection(in: &context, size: size, horizonY: horizonY, breath: breath, time: time, sunCenterX: sunCenter.x)
+    }
+
+    private static func drawSunsetHorizonBlend(
+        in context: inout GraphicsContext,
+        size: CGSize,
+        horizonY: CGFloat,
+        breath: CGFloat,
+        time: TimeInterval
+    ) {
+        let width = size.width
+        let height = size.height
+        let t = CGFloat(time)
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 7.5))
+            layer.fill(
+                Path(CGRect(x: -width * 0.02, y: horizonY - height * 0.018, width: width * 1.04, height: height * 0.050)),
+                with: .linearGradient(
+                    Gradient(colors: [
+                        Color(red: 1.0, green: 0.39, blue: 0.25).opacity(0.050 + 0.040 * Double(breath)),
+                        Color(red: 0.13, green: 0.10, blue: 0.20).opacity(0.28),
+                        Color(red: 0.06, green: 0.05, blue: 0.12).opacity(0.16),
+                        .clear,
+                    ]),
+                    startPoint: CGPoint(x: width * 0.5, y: horizonY - height * 0.018),
+                    endPoint: CGPoint(x: width * 0.5, y: horizonY + height * 0.035)
+                )
+            )
+        }
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 0.9))
+
+            for index in 0..<22 {
+                let seed = index * 37 + 1601
+                let n0 = pseudoNoise(seed)
+                let n1 = pseudoNoise(seed + 11)
+                let n2 = pseudoNoise(seed + 23)
+                let y = horizonY + height * (-0.004 + 0.018 * n0)
+                let length = width * (0.045 + 0.115 * n2)
+                let centerX = width * n1
+                let phase = t * (0.045 + 0.045 * n2) + n0 * .pi * 2
+                let path = sunsetGlintPath(
+                    startX: centerX - length,
+                    endX: centerX + length,
+                    y: y,
+                    amplitude: 0.25 + 0.70 * n2,
+                    phase: phase,
+                    segments: 2
+                )
+                let opacity = (0.020 + 0.030 * Double(breath)) * Double(0.35 + 0.65 * n0)
+
+                layer.stroke(
+                    path,
+                    with: .color(Color(red: 0.90, green: 0.34, blue: 0.28).opacity(opacity)),
+                    style: StrokeStyle(lineWidth: 0.55 + 0.85 * n2, lineCap: .round, lineJoin: .round)
+                )
+            }
+        }
     }
 
     private static func drawSunsetCloudWisps(
@@ -1264,8 +1331,8 @@ enum MeditationRenderer {
         drawSoftGlowGrain(
             in: &context,
             size: size,
-            count: reduceMotion ? 900 : 3_200,
-            alphaScale: (reduceMotion ? 0.95 : 1.40) * (1.0 + 0.36 * Double(exhaleDepth))
+            count: reduceMotion ? 1_200 : 4_800,
+            alphaScale: (reduceMotion ? 1.05 : 1.72) * (1.0 + 0.42 * Double(exhaleDepth))
         )
     }
 
@@ -1279,11 +1346,11 @@ enum MeditationRenderer {
             let n0 = pseudoNoise(index * 73 + 17)
             let n1 = pseudoNoise(index * 73 + 31)
             let n2 = pseudoNoise(index * 73 + 59)
-            let radius = 0.18 + 0.58 * n2
-            let alpha = (0.0040 + 0.0090 * Double(pseudoNoise(index * 73 + 83))) * alphaScale
+            let radius = 0.10 + 0.42 * n2
+            let alpha = (0.0048 + 0.0110 * Double(pseudoNoise(index * 73 + 83))) * alphaScale
             let color = index.isMultiple(of: 2)
                 ? Color.white.opacity(alpha)
-                : Color.black.opacity(alpha * 0.65)
+                : Color.black.opacity(alpha * 0.50)
 
             context.fill(
                 Path(ellipseIn: CGRect(x: size.width * n0, y: size.height * n1, width: radius, height: radius)),
