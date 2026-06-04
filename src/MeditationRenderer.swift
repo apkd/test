@@ -29,8 +29,9 @@ enum MeditationRenderer {
         let breathEase = CGFloat(BreathingTimeline.smoothstep(snapshot.breathAmount))
         let focus = 1 - breathEase
         let cyclePhase = CGFloat(snapshot.angle)
-        let reversibleFlow = CGFloat(snapshot.breathAmount)
-        let continuousTime = CGFloat(time)
+        let ribbonFlowPace: CGFloat = 2.0 / 3.0
+        let reversibleFlow = CGFloat(snapshot.breathAmount) * ribbonFlowPace
+        let continuousTime = CGFloat(time) * ribbonFlowPace
         let familyCount = 3
         let strandsPerFamily = reduceMotion ? 4 : 5
         let sampleCount = reduceMotion ? 34 : 40
@@ -1073,9 +1074,10 @@ enum MeditationRenderer {
         let skyBreath = CGFloat(BreathingTimeline.smoothstep(snapshot.breathAmount))
         let phaseEase = CGFloat(BreathingTimeline.smoothstep(snapshot.phaseProgress))
         let inhaleBrightness = snapshot.isInhale ? phaseEase : max(0, 1 - phaseEase)
+        let exhaleWave = max(0, sin(CGFloat(snapshot.phaseProgress) * .pi))
         let exhaleDarkening = snapshot.isInhale
             ? CGFloat(0)
-            : pow(max(0, sin(CGFloat(snapshot.phaseProgress) * .pi)), 0.78)
+            : CGFloat(BreathingTimeline.smoothstep(Double(exhaleWave)))
         let sunBrightness = min(1.42, max(0.72, 0.92 + 0.46 * inhaleBrightness + 0.12 * skyBreath - 0.22 * exhaleDarkening))
         let sunBrightnessDouble = Double(sunBrightness)
         let sunRise = pow(skyBreath, 1.15)
@@ -1106,20 +1108,18 @@ enum MeditationRenderer {
             )
         )
 
-        if exhaleDarkening > 0.001 {
-            context.fill(
-                sky,
-                with: .linearGradient(
-                    Gradient(colors: [
-                        Color(red: 0.006, green: 0.010, blue: 0.050).opacity(0.38 * Double(exhaleDarkening)),
-                        Color(red: 0.020, green: 0.018, blue: 0.060).opacity(0.24 * Double(exhaleDarkening)),
-                        Color(red: 0.060, green: 0.026, blue: 0.070).opacity(0.13 * Double(exhaleDarkening)),
-                    ]),
-                    startPoint: CGPoint(x: width * 0.45, y: 0),
-                    endPoint: CGPoint(x: width * 0.55, y: horizonY)
-                )
+        context.fill(
+            sky,
+            with: .linearGradient(
+                Gradient(colors: [
+                    Color(red: 0.006, green: 0.010, blue: 0.050).opacity(0.38 * Double(exhaleDarkening)),
+                    Color(red: 0.020, green: 0.018, blue: 0.060).opacity(0.24 * Double(exhaleDarkening)),
+                    Color(red: 0.060, green: 0.026, blue: 0.070).opacity(0.13 * Double(exhaleDarkening)),
+                ]),
+                startPoint: CGPoint(x: width * 0.45, y: 0),
+                endPoint: CGPoint(x: width * 0.55, y: horizonY)
             )
-        }
+        )
 
         context.fill(
             sky,
