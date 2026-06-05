@@ -645,6 +645,28 @@ enum MeditationRenderer {
             }
         }
 
+        for index in 0..<4 {
+            let lane = CGFloat(index) - 1.5
+            let crossingSign: CGFloat = index.isMultiple(of: 2) ? 1 : -1
+            let phase = flow * (.pi * (0.74 + 0.10 * CGFloat(index))) + t * (0.010 + 0.004 * CGFloat(index))
+            let length = minSide * (0.070 + 0.008 * CGFloat(index))
+            let points = [
+                localPoint(x: -length, y: lane * minSide * 0.006 + crossingSign * minSide * 0.010 * sin(phase)),
+                localPoint(x: -length * 0.28, y: lane * minSide * 0.003 - crossingSign * minSide * 0.014 * cos(phase * 0.8)),
+                localPoint(x: length * 0.26, y: -lane * minSide * 0.003 + crossingSign * minSide * 0.012 * sin(phase * 1.1)),
+                localPoint(x: length, y: -lane * minSide * 0.006 - crossingSign * minSide * 0.008 * cos(phase)),
+            ]
+            let color = index == 1
+                ? Color.white
+                : Color(red: 0.78, green: 0.98, blue: 1.0)
+
+            context.stroke(
+                smoothPath(through: points),
+                with: .color(color.opacity(0.46 + 0.28 * Double(breath))),
+                style: StrokeStyle(lineWidth: 0.46 + 0.16 * CGFloat(index), lineCap: .round, lineJoin: .round)
+            )
+        }
+
     }
 
     private static func drawSilkRibbonKnotLacing(
@@ -1624,8 +1646,8 @@ enum MeditationRenderer {
                     x: width * (0.12 + 0.76 * n0),
                     y: height * (0.18 + 0.68 * n1)
                 )
-                let radius = scale * (0.020 + 0.036 * n2)
-                let alpha = 0.024 + 0.024 * Double(breath)
+                let radius = scale * (0.026 + 0.046 * n2)
+                let alpha = 0.034 + 0.030 * Double(breath)
 
                 layer.fill(
                     Path(ellipseIn: CGRect(
@@ -1637,7 +1659,7 @@ enum MeditationRenderer {
                     with: .radialGradient(
                         Gradient(colors: [
                             Color(red: 0.88, green: 0.62, blue: 1.0).opacity(alpha),
-                            Color(red: 0.35, green: 0.52, blue: 1.0).opacity(alpha * 0.50),
+                            Color(red: 0.35, green: 0.52, blue: 1.0).opacity(alpha * 0.58),
                             .clear,
                         ]),
                         center: localCenter,
