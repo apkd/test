@@ -33,8 +33,8 @@ enum MeditationRenderer {
         let reversibleFlow = CGFloat(snapshot.breathAmount) * ribbonFlowPace
         let continuousTime = CGFloat(time) * ribbonFlowPace
         let familyCount = 3
-        let strandsPerFamily = reduceMotion ? 4 : 5
-        let sampleCount = reduceMotion ? 34 : 40
+        let strandsPerFamily = reduceMotion ? 4 : 4
+        let sampleCount = reduceMotion ? 34 : 36
         let minSide = min(width, height)
         let spread = (0.62 + 0.54 * breathEase) * motionScale
         let brightness = 0.96 + 0.50 * breathEase
@@ -256,8 +256,8 @@ enum MeditationRenderer {
                         bodyWidth: (2.8 + 3.5 * centerWeight + 0.7 * strandSeed) * (0.88 + 0.20 * sustainedBreath),
                         coreWidth: (0.42 + 0.92 * centerWeight + 0.14 * strandSeed) * (0.90 + 0.14 * sustainedBreath),
                         auraOpacity: Double(0.018 + 0.022 * centerWeight) * Double(brightness) * Double(frontWeight),
-                        bodyOpacity: Double(0.092 + 0.082 * centerWeight) * Double(brightness) * Double(frontWeight),
-                        coreOpacity: Double(0.092 + 0.245 * centerWeight) * Double(0.90 + 0.20 * sustainedBreath) * Double(frontWeight),
+                        bodyOpacity: Double(0.110 + 0.094 * centerWeight) * Double(brightness) * Double(frontWeight),
+                        coreOpacity: Double(0.112 + 0.270 * centerWeight) * Double(0.90 + 0.20 * sustainedBreath) * Double(frontWeight),
                         pulsePosition: pulsePosition,
                         pulseWidth: pulseWidth,
                         pulseOpacity: pulseOpacity,
@@ -373,17 +373,6 @@ enum MeditationRenderer {
                     string.path,
                     with: .color(string.color.opacity(string.bodyOpacity)),
                     style: StrokeStyle(lineWidth: string.bodyWidth, lineCap: .round, lineJoin: .round)
-                )
-            }
-        }
-
-        context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 0.65))
-            for string in strings {
-                layerContext.stroke(
-                    string.path.trimmedPath(from: 0.026, to: 0.974),
-                    with: .color(string.color.opacity(string.bodyOpacity * 0.84)),
-                    style: StrokeStyle(lineWidth: max(0.6, string.bodyWidth * 0.40), lineCap: .round, lineJoin: .round)
                 )
             }
         }
@@ -568,24 +557,6 @@ enum MeditationRenderer {
             )
         }
 
-        func localEllipsePath(radiusX: CGFloat, radiusY: CGFloat, samples: Int = 36) -> Path {
-            var path = Path()
-
-            for sample in 0...samples {
-                let angle = CGFloat(sample) / CGFloat(samples) * .pi * 2
-                let point = localPoint(x: cos(angle) * radiusX, y: sin(angle) * radiusY)
-
-                if sample == 0 {
-                    path.move(to: point)
-                } else {
-                    path.addLine(to: point)
-                }
-            }
-
-            path.closeSubpath()
-            return path
-        }
-
         context.drawLayer { layer in
             layer.addFilter(.blur(radius: 4.8))
             layer.fill(
@@ -597,9 +568,9 @@ enum MeditationRenderer {
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.64 + 0.34 * Double(breath)),
-                        Color(red: 0.62, green: 0.98, blue: 1.0).opacity(0.46 + 0.20 * Double(breath)),
-                        Color(red: 0.78, green: 0.58, blue: 1.0).opacity(0.24 + 0.12 * Double(breath)),
+                        Color.white.opacity(0.70 + 0.36 * Double(breath)),
+                        Color(red: 0.62, green: 0.98, blue: 1.0).opacity(0.50 + 0.22 * Double(breath)),
+                        Color(red: 0.78, green: 0.58, blue: 1.0).opacity(0.25 + 0.12 * Double(breath)),
                         .clear,
                     ]),
                     center: center,
@@ -668,8 +639,8 @@ enum MeditationRenderer {
 
                 layer.stroke(
                     smoothPath(through: points),
-                    with: .color(color.opacity(0.48 + 0.28 * Double(breath))),
-                    style: StrokeStyle(lineWidth: 0.78 + 0.32 * CGFloat(index), lineCap: .round, lineJoin: .round)
+                    with: .color(color.opacity(0.56 + 0.30 * Double(breath))),
+                    style: StrokeStyle(lineWidth: 0.88 + 0.34 * CGFloat(index), lineCap: .round, lineJoin: .round)
                 )
             }
         }
@@ -687,8 +658,8 @@ enum MeditationRenderer {
     ) {
         let minSide = min(size.width, size.height)
         let t = CGFloat(time)
-        let laces = reduceMotion ? 3 : 4
-        let samples = reduceMotion ? 28 : 36
+        let laces = reduceMotion ? 3 : 3
+        let samples = reduceMotion ? 28 : 32
         let rotation: CGFloat = -0.31
         let cosine = cos(rotation)
         let sine = sin(rotation)
@@ -756,28 +727,6 @@ enum MeditationRenderer {
             }
         }
 
-        context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 7.0))
-            layer.fill(
-                Path(ellipseIn: CGRect(
-                    x: center.x - minSide * 0.18,
-                    y: center.y - minSide * 0.09,
-                    width: minSide * 0.36,
-                    height: minSide * 0.18
-                )),
-                with: .radialGradient(
-                    Gradient(colors: [
-                        Color.white.opacity(0.30 + 0.25 * Double(breath)),
-                        Color(red: 0.42, green: 0.90, blue: 1.0).opacity(0.24 + 0.15 * Double(breath)),
-                        Color(red: 0.62, green: 0.42, blue: 1.0).opacity(0.16),
-                        .clear,
-                    ]),
-                    center: center,
-                    startRadius: 0,
-                    endRadius: minSide * 0.18
-                )
-            )
-        }
     }
 
     private static func drawSilkRibbonVeils(
@@ -812,35 +761,7 @@ enum MeditationRenderer {
                 let n1 = pseudoNoise(seed + 17)
                 let color = silkRibbonVeilColor(index: index, breath: breath)
                 let lineWidth = minSide * (0.048 + 0.030 * n0) * (0.92 + 0.30 * breath)
-                let opacity = Double(0.046 + 0.030 * n1) * Double(intensity)
-
-                layer.stroke(
-                    path,
-                    with: .color(color.opacity(opacity)),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
-                )
-            }
-        }
-
-        context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 5.8))
-
-            for index in 0..<count {
-                let path = silkRibbonVeilPath(
-                    index: index,
-                    count: count,
-                    width: width,
-                    height: height,
-                    breath: breath,
-                    cyclePhase: cyclePhase,
-                    time: CGFloat(time)
-                )
-                let seed = index * 109 + 401
-                let n0 = pseudoNoise(seed)
-                let n1 = pseudoNoise(seed + 29)
-                let color = silkRibbonVeilColor(index: index, breath: breath)
-                let lineWidth = minSide * (0.014 + 0.012 * n0) * (0.88 + 0.28 * breath)
-                let opacity = Double(0.110 + 0.066 * n1) * Double(intensity)
+                let opacity = Double(0.052 + 0.032 * n1) * Double(intensity)
 
                 layer.stroke(
                     path,
@@ -865,7 +786,7 @@ enum MeditationRenderer {
                 )
                 let centerDistance = abs(CGFloat(index) - CGFloat(count - 1) * 0.5) / max(1, CGFloat(count - 1) * 0.5)
                 let lineWidth = max(0.8, minSide * (0.0022 + 0.0028 * (1 - centerDistance)))
-                let opacity = Double(0.26 + 0.30 * (1 - centerDistance)) * Double(0.86 + 0.34 * breath)
+                let opacity = Double(0.30 + 0.32 * (1 - centerDistance)) * Double(0.86 + 0.34 * breath)
                 let color = centerDistance < 0.25
                     ? Color(red: 0.92, green: 0.98, blue: 1.0)
                     : silkRibbonVeilColor(index: index, breath: breath)
@@ -991,7 +912,7 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let count = reduceMotion ? 42 : 92
+        let count = reduceMotion ? 36 : 72
         let t = CGFloat(time)
 
         context.drawLayer { layer in
@@ -1016,7 +937,7 @@ enum MeditationRenderer {
                 let radius = 0.16 + 0.66 * n2
                 let local = max(0, 1 - distance / max(1, minSide * 0.34))
                 let twinkle = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * (0.42 + 0.55 * n3) + n2 * .pi * 2))
-                let opacity = Double(0.110 + 0.48 * local) * Double(0.84 + 0.46 * breath) * Double(twinkle)
+                let opacity = Double(0.130 + 0.54 * local) * Double(0.84 + 0.46 * breath) * Double(twinkle)
                 let color: Color
 
                 if n3 > 0.78 {
@@ -1050,7 +971,7 @@ enum MeditationRenderer {
     ) {
         let width = size.width
         let height = size.height
-        let count = reduceMotion ? 38 : 88
+        let count = reduceMotion ? 32 : 64
         let t = CGFloat(time)
 
         context.drawLayer { layer in
@@ -1098,7 +1019,7 @@ enum MeditationRenderer {
             let spark = n2 > 0.88
             let envelopeOpacity = 0.42 + 0.58 * envelope
             let breathOpacity = 0.78 + 0.36 * breath
-            let baseOpacity = spark ? 0.24 : 0.070
+            let baseOpacity = spark ? 0.30 : 0.082
             let opacity = Double(baseOpacity * envelopeOpacity * breathOpacity)
             let color: Color
 
