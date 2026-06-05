@@ -29,9 +29,10 @@ enum MeditationRenderer {
         let breathEase = CGFloat(BreathingTimeline.smoothstep(snapshot.breathAmount))
         let focus = 1 - breathEase
         let cyclePhase = CGFloat(snapshot.angle)
-        let ribbonFlowPace: CGFloat = 2.0 / 3.0
-        let reversibleFlow = CGFloat(snapshot.breathAmount) * ribbonFlowPace
-        let continuousTime = CGFloat(time) * ribbonFlowPace
+        let ribbonMotionPace: CGFloat = 4.0 / 9.0
+        let reversibleFlow = CGFloat(snapshot.breathAmount) * ribbonMotionPace
+        let ribbonTime = time * TimeInterval(ribbonMotionPace)
+        let continuousTime = CGFloat(ribbonTime)
         let familyCount = 3
         let strandsPerFamily = reduceMotion ? 4 : 4
         let sampleCount = reduceMotion ? 34 : 36
@@ -295,7 +296,7 @@ enum MeditationRenderer {
             size: size,
             breath: breathEase,
             flow: reversibleFlow,
-            time: time,
+            time: ribbonTime,
             reduceMotion: reduceMotion
         )
 
@@ -304,7 +305,7 @@ enum MeditationRenderer {
             size: size,
             breath: breathEase,
             flow: reversibleFlow,
-            time: time,
+            time: ribbonTime,
             reduceMotion: reduceMotion
         )
 
@@ -313,7 +314,7 @@ enum MeditationRenderer {
             size: size,
             breath: breathEase,
             cyclePhase: cyclePhase,
-            time: time,
+            time: ribbonTime,
             reduceMotion: reduceMotion
         )
 
@@ -328,7 +329,7 @@ enum MeditationRenderer {
             center: flareCenter,
             breath: breathEase,
             flow: reversibleFlow,
-            time: time,
+            time: ribbonTime,
             reduceMotion: reduceMotion
         )
 
@@ -449,7 +450,7 @@ enum MeditationRenderer {
             center: flareCenter,
             breath: breathEase,
             flow: reversibleFlow,
-            time: time,
+            time: ribbonTime,
             reduceMotion: reduceMotion
         )
 
@@ -459,7 +460,7 @@ enum MeditationRenderer {
             center: flareCenter,
             breath: breathEase,
             flow: reversibleFlow,
-            time: time
+            time: ribbonTime
         )
     }
 
@@ -568,9 +569,9 @@ enum MeditationRenderer {
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.70 + 0.36 * Double(breath)),
-                        Color(red: 0.62, green: 0.98, blue: 1.0).opacity(0.50 + 0.22 * Double(breath)),
-                        Color(red: 0.78, green: 0.58, blue: 1.0).opacity(0.25 + 0.12 * Double(breath)),
+                        Color.white.opacity(0.78 + 0.38 * Double(breath)),
+                        Color(red: 0.66, green: 1.0, blue: 1.0).opacity(0.54 + 0.23 * Double(breath)),
+                        Color(red: 0.80, green: 0.60, blue: 1.0).opacity(0.27 + 0.13 * Double(breath)),
                         .clear,
                     ]),
                     center: center,
@@ -609,12 +610,12 @@ enum MeditationRenderer {
                 let color = index.isMultiple(of: 3)
                     ? Color.white
                     : (index.isMultiple(of: 2) ? Color(red: 0.66, green: 0.96, blue: 1.0) : Color(red: 0.86, green: 0.68, blue: 1.0))
-                let opacity = (0.54 + 0.30 * Double(breath)) * Double(0.74 + 0.26 * n2)
+                let opacity = (0.62 + 0.30 * Double(breath)) * Double(0.74 + 0.26 * n2)
 
                 layer.stroke(
                     smoothPath(through: points),
                     with: .color(color.opacity(opacity)),
-                    style: StrokeStyle(lineWidth: 0.72 + 0.94 * n1, lineCap: .round, lineJoin: .round)
+                    style: StrokeStyle(lineWidth: 0.80 + 1.02 * n1, lineCap: .round, lineJoin: .round)
                 )
             }
         }
@@ -639,8 +640,8 @@ enum MeditationRenderer {
 
                 layer.stroke(
                     smoothPath(through: points),
-                    with: .color(color.opacity(0.56 + 0.30 * Double(breath))),
-                    style: StrokeStyle(lineWidth: 0.88 + 0.34 * CGFloat(index), lineCap: .round, lineJoin: .round)
+                    with: .color(color.opacity(0.62 + 0.30 * Double(breath))),
+                    style: StrokeStyle(lineWidth: 0.96 + 0.36 * CGFloat(index), lineCap: .round, lineJoin: .round)
                 )
             }
         }
@@ -662,8 +663,8 @@ enum MeditationRenderer {
 
             context.stroke(
                 smoothPath(through: points),
-                with: .color(color.opacity(0.50 + 0.28 * Double(breath))),
-                style: StrokeStyle(lineWidth: 0.50 + 0.14 * CGFloat(index), lineCap: .round, lineJoin: .round)
+                with: .color(color.opacity(0.58 + 0.28 * Double(breath))),
+                style: StrokeStyle(lineWidth: 0.54 + 0.15 * CGFloat(index), lineCap: .round, lineJoin: .round)
             )
         }
 
@@ -1069,14 +1070,14 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let motionScale: CGFloat = reduceMotion ? 0.35 : 1
-        let breath = CGFloat(snapshot.breathAmount) * motionScale
-        let skyBreath = CGFloat(BreathingTimeline.smoothstep(snapshot.breathAmount))
+        let cyclePhase = CGFloat(snapshot.angle)
+        let cycleBreath = 0.5 - 0.5 * cos(cyclePhase)
+        let skyBreath = CGFloat(BreathingTimeline.smoothstep(Double(cycleBreath)))
+        let breath = skyBreath * motionScale
         let phaseEase = CGFloat(BreathingTimeline.smoothstep(snapshot.phaseProgress))
         let inhaleBrightness = snapshot.isInhale ? phaseEase : max(0, 1 - phaseEase)
-        let exhaleWave = max(0, sin(CGFloat(snapshot.phaseProgress) * .pi))
-        let exhaleDarkening = snapshot.isInhale
-            ? CGFloat(0)
-            : CGFloat(BreathingTimeline.smoothstep(Double(exhaleWave)))
+        let exhaleWave = max(0, -sin(cyclePhase))
+        let exhaleDarkening = CGFloat(BreathingTimeline.smoothstep(Double(exhaleWave)))
         let sunBrightness = min(1.72, max(0.82, 1.00 + 0.64 * inhaleBrightness + 0.18 * skyBreath - 0.16 * exhaleDarkening))
         let sunBrightnessDouble = Double(sunBrightness)
         let sunRise = pow(skyBreath, 1.15)
@@ -1308,8 +1309,8 @@ enum MeditationRenderer {
                 with: .linearGradient(
                     Gradient(colors: [
                         .clear,
-            Color(red: 1.0, green: 0.62, blue: 0.34).opacity(0.120 + 0.078 * Double(breath)),
-            Color(red: 0.95, green: 0.36, blue: 0.30).opacity(0.062 + 0.040 * Double(breath)),
+                        Color(red: 1.0, green: 0.62, blue: 0.34).opacity(0.120 + 0.078 * Double(breath)),
+                        Color(red: 0.95, green: 0.36, blue: 0.30).opacity(0.062 + 0.040 * Double(breath)),
                         .clear,
                     ]),
                     startPoint: CGPoint(x: width * 0.5, y: horizonY - height * 0.018),
@@ -1377,7 +1378,7 @@ enum MeditationRenderer {
                 let amplitude = width * (0.0025 + 0.0045 * n3)
                 let warmth = 1 - y / max(1, horizonY)
                 let lowerGlow = 1 - abs(CGFloat(0.78) - y / max(1, horizonY)) / 0.78
-                let opacity = (0.018 + 0.036 * Double(max(0, lowerGlow)) + 0.026 * Double(breath)) * Double(0.45 + n2)
+                let opacity = (0.022 + 0.044 * Double(max(0, lowerGlow)) + 0.030 * Double(breath)) * Double(0.45 + n2)
                 let color = index.isMultiple(of: 3)
                     ? Color(red: 1.0, green: 0.34 + 0.10 * Double(warmth), blue: 0.24).opacity(opacity)
                     : Color(red: 0.88, green: 0.18 + 0.08 * Double(warmth), blue: 0.36).opacity(opacity * 0.82)
@@ -1417,7 +1418,7 @@ enum MeditationRenderer {
                         phase: t * 0.012 + n0 * .pi * 2,
                         segments: 4
                     ),
-                    with: .color(Color(red: 1.0, green: 0.42, blue: 0.24).opacity(0.030 + 0.035 * Double(breath))),
+                    with: .color(Color(red: 1.0, green: 0.42, blue: 0.24).opacity(0.038 + 0.040 * Double(breath))),
                     style: StrokeStyle(lineWidth: 3.5 + 3.5 * pseudoNoise(seed + 61), lineCap: .round, lineJoin: .round)
                 )
             }
@@ -1477,9 +1478,9 @@ enum MeditationRenderer {
                     height: radius * (1.6 + 1.0 * n1)
                 )
                 let colors: [Color] = [
-                    Color(red: 0.82, green: 0.68, blue: 1.0).opacity(0.24 + 0.14 * Double(localBreath)),
+                    Color(red: 0.84, green: 0.68, blue: 1.0).opacity(0.26 + 0.14 * Double(localBreath)),
                     Color(red: 0.20, green: 0.63, blue: 1.0).opacity(0.15 + 0.11 * Double(localPulse)),
-                    Color(red: 0.42, green: 0.20, blue: 0.84).opacity(0.12),
+                    Color(red: 0.44, green: 0.20, blue: 0.86).opacity(0.14),
                     .clear,
                 ]
 
@@ -1658,8 +1659,8 @@ enum MeditationRenderer {
                     )),
                     with: .radialGradient(
                         Gradient(colors: [
-                            Color(red: 0.88, green: 0.62, blue: 1.0).opacity(alpha),
-                            Color(red: 0.35, green: 0.52, blue: 1.0).opacity(alpha * 0.58),
+                            Color(red: 0.90, green: 0.62, blue: 1.0).opacity(alpha * 1.10),
+                            Color(red: 0.35, green: 0.52, blue: 1.0).opacity(alpha * 0.62),
                             .clear,
                         ]),
                         center: localCenter,
