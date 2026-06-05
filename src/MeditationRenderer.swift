@@ -300,15 +300,6 @@ enum MeditationRenderer {
             reduceMotion: reduceMotion
         )
 
-        drawSilkRibbonParticles(
-            in: &context,
-            size: size,
-            breath: breathEase,
-            flow: reversibleFlow,
-            time: ribbonTime,
-            reduceMotion: reduceMotion
-        )
-
         drawSilkRibbonVeils(
             in: &context,
             size: size,
@@ -323,6 +314,16 @@ enum MeditationRenderer {
             y: height * (0.482 - 0.022 * breathEase)
         )
 
+        drawSilkRibbonDustFields(
+            in: &context,
+            size: size,
+            center: flareCenter,
+            breath: breathEase,
+            flow: reversibleFlow,
+            time: ribbonTime,
+            reduceMotion: reduceMotion
+        )
+
         drawSilkRibbonSparkBurst(
             in: &context,
             size: size,
@@ -334,24 +335,42 @@ enum MeditationRenderer {
         )
 
         context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 20))
+            layerContext.addFilter(.blur(radius: 18))
             layerContext.fill(
                 Path(ellipseIn: CGRect(
-                    x: flareCenter.x - minSide * 0.34,
-                    y: flareCenter.y - minSide * 0.20,
-                    width: minSide * 0.68,
-                    height: minSide * 0.40
+                    x: flareCenter.x - minSide * 0.43,
+                    y: flareCenter.y - minSide * 0.24,
+                    width: minSide * 0.86,
+                    height: minSide * 0.48
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.44 + 0.28 * Double(breathEase)),
-                        Color(red: 0.34, green: 0.90, blue: 1.0).opacity(0.34 + 0.18 * Double(breathEase)),
-                        Color(red: 0.66, green: 0.48, blue: 1.0).opacity(0.21),
+                        Color.white.opacity(0.48 + 0.30 * Double(breathEase)),
+                        Color(red: 0.34, green: 0.90, blue: 1.0).opacity(0.38 + 0.20 * Double(breathEase)),
+                        Color(red: 0.66, green: 0.48, blue: 1.0).opacity(0.24),
                         .clear,
                     ]),
                     center: flareCenter,
                     startRadius: 0,
-                    endRadius: minSide * 0.34
+                    endRadius: minSide * 0.43
+                )
+            )
+            layerContext.fill(
+                Path(ellipseIn: CGRect(
+                    x: flareCenter.x - minSide * 0.24,
+                    y: flareCenter.y - minSide * 0.31,
+                    width: minSide * 0.48,
+                    height: minSide * 0.62
+                )),
+                with: .radialGradient(
+                    Gradient(colors: [
+                        Color.white.opacity(0.30 + 0.20 * Double(breathEase)),
+                        Color(red: 0.70, green: 0.56, blue: 1.0).opacity(0.25 + 0.11 * Double(breathEase)),
+                        .clear,
+                    ]),
+                    center: flareCenter,
+                    startRadius: 0,
+                    endRadius: minSide * 0.31
                 )
             )
         }
@@ -923,6 +942,100 @@ enum MeditationRenderer {
         )
     }
 
+    private static func drawSilkRibbonDustFields(
+        in context: inout GraphicsContext,
+        size: CGSize,
+        center: CGPoint,
+        breath: CGFloat,
+        flow: CGFloat,
+        time: TimeInterval,
+        reduceMotion: Bool
+    ) {
+        let width = size.width
+        let height = size.height
+        let minSide = min(width, height)
+        let t = CGFloat(time)
+        let count = reduceMotion ? 86 : 240
+        let diagonal = CGVector(dx: cos(-0.30), dy: sin(-0.30))
+        let pulse = 0.82 + 0.18 * sin(t * 0.42 + flow * .pi * 3.0)
+        var cyanDust = Path()
+        var violetDust = Path()
+        var whiteDust = Path()
+        var sparkLines = Path()
+
+        for index in 0..<count {
+            let seed = index * 73 + 9301
+            let n0 = pseudoNoise(seed)
+            let n1 = pseudoNoise(seed + 13)
+            let n2 = pseudoNoise(seed + 31)
+            let n3 = pseudoNoise(seed + 59)
+            let n4 = pseudoNoise(seed + 83)
+            let radial = pow(n1, 1.58)
+            let centrality = max(0, 1 - radial)
+            let angle = n0 * .pi * 2
+            let distance = minSide * (0.010 + 0.360 * radial) * (0.88 + 0.30 * breath)
+            let ribbonProgress = n4
+            let ribbonX = width * (-0.05 + 1.10 * ribbonProgress)
+            let ribbonY = height * (0.620 - 0.250 * ribbonProgress)
+                + minSide * 0.060 * sin(ribbonProgress * .pi * 2.0 + flow * .pi * 2.0 + n2 * .pi)
+            let cloudX = center.x
+                + cos(angle) * distance * (1.44 + 0.34 * n2)
+                + diagonal.dx * minSide * 0.040 * sin(flow * .pi * 2.2 + n3 * .pi * 2)
+            let cloudY = center.y
+                + sin(angle) * distance * (0.45 + 0.28 * n3)
+                + diagonal.dy * minSide * 0.030 * cos(flow * .pi * 1.8 + n2 * .pi * 2)
+            let ribbonBlend = n3 > 0.72 ? 0.48 : 0.16
+            let x = cloudX + (ribbonX - cloudX) * ribbonBlend
+            let y = cloudY + (ribbonY - cloudY) * ribbonBlend
+            let radius = (0.28 + 0.82 * n2) * (0.64 + 0.76 * centrality)
+            let rect = CGRect(
+                x: x - radius * (0.70 + 0.30 * n1),
+                y: y - radius * (0.70 + 0.30 * n0),
+                width: radius * (1.15 + 0.72 * n3),
+                height: radius * (1.10 + 0.58 * n4)
+            )
+
+            if n4 > 0.88 || centrality > 0.78 {
+                whiteDust.addRect(rect)
+            } else if n2 > 0.50 {
+                cyanDust.addRect(rect)
+            } else {
+                violetDust.addRect(rect)
+            }
+
+            if n3 > 0.58 && centrality > 0.22 {
+                let lineAngle = -0.30 + (n2 - 0.5) * 0.85
+                let halfLength = (0.7 + 2.5 * n0) * (0.62 + 0.82 * centrality)
+                sparkLines.move(to: CGPoint(
+                    x: x - cos(lineAngle) * halfLength,
+                    y: y - sin(lineAngle) * halfLength
+                ))
+                sparkLines.addLine(to: CGPoint(
+                    x: x + cos(lineAngle) * halfLength,
+                    y: y + sin(lineAngle) * halfLength
+                ))
+            }
+        }
+
+        context.fill(
+            violetDust,
+            with: .color(Color(red: 0.76, green: 0.52, blue: 1.0).opacity(0.092 * Double(pulse) * Double(0.90 + 0.36 * breath)))
+        )
+        context.fill(
+            cyanDust,
+            with: .color(Color(red: 0.36, green: 0.88, blue: 1.0).opacity(0.104 * Double(pulse) * Double(0.90 + 0.36 * breath)))
+        )
+        context.fill(
+            whiteDust,
+            with: .color(Color.white.opacity(0.150 * Double(pulse) * Double(0.84 + 0.38 * breath)))
+        )
+        context.stroke(
+            sparkLines,
+            with: .color(Color(red: 0.88, green: 0.98, blue: 1.0).opacity(0.34 * Double(pulse))),
+            style: StrokeStyle(lineWidth: 0.74, lineCap: .round, lineJoin: .round)
+        )
+    }
+
     private static func drawSilkRibbonSparkBurst(
         in context: inout GraphicsContext,
         size: CGSize,
@@ -935,7 +1048,7 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let count = reduceMotion ? 40 : 108
+        let count = reduceMotion ? 18 : 42
         let t = CGFloat(time)
 
         context.drawLayer { layer in
@@ -981,82 +1094,6 @@ enum MeditationRenderer {
                     with: .color(color)
                 )
             }
-        }
-    }
-
-    private static func drawSilkRibbonParticles(
-        in context: inout GraphicsContext,
-        size: CGSize,
-        breath: CGFloat,
-        flow: CGFloat,
-        time: TimeInterval,
-        reduceMotion: Bool
-    ) {
-        let width = size.width
-        let height = size.height
-        let count = reduceMotion ? 32 : 64
-        let t = CGFloat(time)
-
-        context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 0.55))
-            drawSilkRibbonParticleLayer(
-                in: &layer,
-                width: width,
-                height: height,
-                count: count,
-                breath: breath,
-                flow: flow,
-                time: t
-            )
-        }
-    }
-
-    private static func drawSilkRibbonParticleLayer(
-        in context: inout GraphicsContext,
-        width: CGFloat,
-        height: CGFloat,
-        count: Int,
-        breath: CGFloat,
-        flow: CGFloat,
-        time: CGFloat
-    ) {
-        for index in 0..<count {
-            let seed = index * 61 + 509
-            let n0 = pseudoNoise(seed)
-            let n1 = pseudoNoise(seed + 13)
-            let n2 = pseudoNoise(seed + 29)
-            let n3 = pseudoNoise(seed + 47)
-            let progress = n0
-            let envelope = pow(max(0, sin(progress * .pi)), 0.62)
-            let baseX = width * (-0.04 + 1.08 * progress)
-            let scatterX = width * (n1 - 0.5) * (0.05 + 0.16 * envelope)
-            let driftPhaseX = flow * (.pi * 1.34 + 0.54 * n2) + time * (0.018 + 0.012 * n2) + n3 * .pi * 2
-            let driftX = width * 0.018 * sin(driftPhaseX)
-            let baseY = height * (0.64 - 0.22 * progress)
-            let scatterY = height * (n2 - 0.5) * (0.05 + 0.15 * envelope)
-            let driftPhaseY = flow * (.pi * 1.20 + 0.47 * n1) + time * (0.016 + 0.012 * n1) + n0 * .pi * 2
-            let driftY = height * 0.014 * cos(driftPhaseY)
-            let x = baseX + scatterX + driftX
-            let y = baseY + scatterY + driftY
-            let radius = 0.18 + 0.78 * n3
-            let spark = n2 > 0.88
-            let envelopeOpacity = 0.42 + 0.58 * envelope
-            let breathOpacity = 0.78 + 0.36 * breath
-            let baseOpacity = spark ? 0.34 : 0.102
-            let opacity = Double(baseOpacity * envelopeOpacity * breathOpacity) * 1.18
-            let color: Color
-
-            if spark {
-                color = Color.white.opacity(opacity)
-            } else {
-                let red = 0.30 + 0.52 * Double(n1)
-                let green = 0.58 + 0.24 * Double(n2)
-                color = Color(red: red, green: green, blue: 1.0).opacity(opacity)
-            }
-
-            let diameter = radius * 2
-            let rect = CGRect(x: x - radius, y: y - radius, width: diameter, height: diameter)
-            context.fill(Path(ellipseIn: rect), with: .color(color))
         }
     }
 
