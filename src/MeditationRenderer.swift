@@ -645,11 +645,11 @@ enum MeditationRenderer {
             }
         }
 
-        for index in 0..<8 {
-            let lane = (CGFloat(index) - 3.5) * 0.62
+        for index in 0..<4 {
+            let lane = CGFloat(index) - 1.5
             let crossingSign: CGFloat = index.isMultiple(of: 2) ? 1 : -1
-            let phase = flow * (.pi * (0.66 + 0.055 * CGFloat(index))) + t * (0.008 + 0.0025 * CGFloat(index))
-            let length = minSide * (0.060 + 0.006 * CGFloat(index % 4))
+            let phase = flow * (.pi * (0.74 + 0.10 * CGFloat(index))) + t * (0.010 + 0.004 * CGFloat(index))
+            let length = minSide * (0.074 + 0.008 * CGFloat(index))
             let points = [
                 localPoint(x: -length, y: lane * minSide * 0.006 + crossingSign * minSide * 0.010 * sin(phase)),
                 localPoint(x: -length * 0.28, y: lane * minSide * 0.003 - crossingSign * minSide * 0.014 * cos(phase * 0.8)),
@@ -662,8 +662,8 @@ enum MeditationRenderer {
 
             context.stroke(
                 smoothPath(through: points),
-                with: .color(color.opacity(0.34 + 0.24 * Double(breath))),
-                style: StrokeStyle(lineWidth: 0.38 + 0.10 * CGFloat(index % 4), lineCap: .round, lineJoin: .round)
+                with: .color(color.opacity(0.50 + 0.28 * Double(breath))),
+                style: StrokeStyle(lineWidth: 0.50 + 0.14 * CGFloat(index), lineCap: .round, lineJoin: .round)
             )
         }
 
@@ -934,7 +934,7 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let count = reduceMotion ? 40 : 84
+        let count = reduceMotion ? 36 : 72
         let t = CGFloat(time)
 
         context.drawLayer { layer in
@@ -959,7 +959,7 @@ enum MeditationRenderer {
                 let radius = 0.16 + 0.66 * n2
                 let local = max(0, 1 - distance / max(1, minSide * 0.34))
                 let twinkle = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * (0.42 + 0.55 * n3) + n2 * .pi * 2))
-                let opacity = Double(0.140 + 0.58 * local) * Double(0.84 + 0.46 * breath) * Double(twinkle)
+                let opacity = Double(0.135 + 0.56 * local) * Double(0.84 + 0.46 * breath) * Double(twinkle)
                 let color: Color
 
                 if n3 > 0.78 {
