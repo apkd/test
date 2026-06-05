@@ -1003,9 +1003,9 @@ enum MeditationRenderer {
                 violetDust.addRect(rect)
             }
 
-            if n3 > 0.58 && centrality > 0.22 {
+            if n3 > 0.74 && centrality > 0.30 {
                 let lineAngle = -0.30 + (n2 - 0.5) * 0.85
-                let halfLength = (0.7 + 2.5 * n0) * (0.62 + 0.82 * centrality)
+                let halfLength = (0.35 + 1.35 * n0) * (0.58 + 0.74 * centrality)
                 sparkLines.move(to: CGPoint(
                     x: x - cos(lineAngle) * halfLength,
                     y: y - sin(lineAngle) * halfLength
@@ -1019,20 +1019,20 @@ enum MeditationRenderer {
 
         context.fill(
             violetDust,
-            with: .color(Color(red: 0.76, green: 0.52, blue: 1.0).opacity(0.092 * Double(pulse) * Double(0.90 + 0.36 * breath)))
+            with: .color(Color(red: 0.76, green: 0.52, blue: 1.0).opacity(0.126 * Double(pulse) * Double(0.90 + 0.36 * breath)))
         )
         context.fill(
             cyanDust,
-            with: .color(Color(red: 0.36, green: 0.88, blue: 1.0).opacity(0.104 * Double(pulse) * Double(0.90 + 0.36 * breath)))
+            with: .color(Color(red: 0.36, green: 0.88, blue: 1.0).opacity(0.144 * Double(pulse) * Double(0.90 + 0.36 * breath)))
         )
         context.fill(
             whiteDust,
-            with: .color(Color.white.opacity(0.150 * Double(pulse) * Double(0.84 + 0.38 * breath)))
+            with: .color(Color.white.opacity(0.190 * Double(pulse) * Double(0.84 + 0.38 * breath)))
         )
         context.stroke(
             sparkLines,
-            with: .color(Color(red: 0.88, green: 0.98, blue: 1.0).opacity(0.34 * Double(pulse))),
-            style: StrokeStyle(lineWidth: 0.74, lineCap: .round, lineJoin: .round)
+            with: .color(Color(red: 0.88, green: 0.98, blue: 1.0).opacity(0.18 * Double(pulse))),
+            style: StrokeStyle(lineWidth: 0.48, lineCap: .round, lineJoin: .round)
         )
     }
 
