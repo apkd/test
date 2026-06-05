@@ -645,11 +645,11 @@ enum MeditationRenderer {
             }
         }
 
-        for index in 0..<4 {
-            let lane = CGFloat(index) - 1.5
+        for index in 0..<8 {
+            let lane = (CGFloat(index) - 3.5) * 0.62
             let crossingSign: CGFloat = index.isMultiple(of: 2) ? 1 : -1
-            let phase = flow * (.pi * (0.74 + 0.10 * CGFloat(index))) + t * (0.010 + 0.004 * CGFloat(index))
-            let length = minSide * (0.070 + 0.008 * CGFloat(index))
+            let phase = flow * (.pi * (0.66 + 0.055 * CGFloat(index))) + t * (0.008 + 0.0025 * CGFloat(index))
+            let length = minSide * (0.060 + 0.006 * CGFloat(index % 4))
             let points = [
                 localPoint(x: -length, y: lane * minSide * 0.006 + crossingSign * minSide * 0.010 * sin(phase)),
                 localPoint(x: -length * 0.28, y: lane * minSide * 0.003 - crossingSign * minSide * 0.014 * cos(phase * 0.8)),
@@ -662,8 +662,8 @@ enum MeditationRenderer {
 
             context.stroke(
                 smoothPath(through: points),
-                with: .color(color.opacity(0.46 + 0.28 * Double(breath))),
-                style: StrokeStyle(lineWidth: 0.46 + 0.16 * CGFloat(index), lineCap: .round, lineJoin: .round)
+                with: .color(color.opacity(0.34 + 0.24 * Double(breath))),
+                style: StrokeStyle(lineWidth: 0.38 + 0.10 * CGFloat(index % 4), lineCap: .round, lineJoin: .round)
             )
         }
 
@@ -934,7 +934,7 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let count = reduceMotion ? 36 : 72
+        let count = reduceMotion ? 40 : 84
         let t = CGFloat(time)
 
         context.drawLayer { layer in
@@ -959,7 +959,7 @@ enum MeditationRenderer {
                 let radius = 0.16 + 0.66 * n2
                 let local = max(0, 1 - distance / max(1, minSide * 0.34))
                 let twinkle = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * (0.42 + 0.55 * n3) + n2 * .pi * 2))
-                let opacity = Double(0.130 + 0.54 * local) * Double(0.84 + 0.46 * breath) * Double(twinkle)
+                let opacity = Double(0.140 + 0.58 * local) * Double(0.84 + 0.46 * breath) * Double(twinkle)
                 let color: Color
 
                 if n3 > 0.78 {
@@ -1308,8 +1308,8 @@ enum MeditationRenderer {
                 with: .linearGradient(
                     Gradient(colors: [
                         .clear,
-            Color(red: 1.0, green: 0.62, blue: 0.34).opacity(0.105 + 0.070 * Double(breath)),
-            Color(red: 0.95, green: 0.36, blue: 0.30).opacity(0.052 + 0.036 * Double(breath)),
+            Color(red: 1.0, green: 0.62, blue: 0.34).opacity(0.120 + 0.078 * Double(breath)),
+            Color(red: 0.95, green: 0.36, blue: 0.30).opacity(0.062 + 0.040 * Double(breath)),
                         .clear,
                     ]),
                     startPoint: CGPoint(x: width * 0.5, y: horizonY - height * 0.018),
@@ -1477,9 +1477,9 @@ enum MeditationRenderer {
                     height: radius * (1.6 + 1.0 * n1)
                 )
                 let colors: [Color] = [
-                    Color(red: 0.80, green: 0.68, blue: 1.0).opacity(0.22 + 0.13 * Double(localBreath)),
+                    Color(red: 0.82, green: 0.68, blue: 1.0).opacity(0.24 + 0.14 * Double(localBreath)),
                     Color(red: 0.20, green: 0.63, blue: 1.0).opacity(0.15 + 0.11 * Double(localPulse)),
-                    Color(red: 0.40, green: 0.20, blue: 0.82).opacity(0.10),
+                    Color(red: 0.42, green: 0.20, blue: 0.84).opacity(0.12),
                     .clear,
                 ]
 
