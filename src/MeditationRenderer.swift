@@ -568,6 +568,24 @@ enum MeditationRenderer {
             )
         }
 
+        func localEllipsePath(radiusX: CGFloat, radiusY: CGFloat, samples: Int = 36) -> Path {
+            var path = Path()
+
+            for sample in 0...samples {
+                let angle = CGFloat(sample) / CGFloat(samples) * .pi * 2
+                let point = localPoint(x: cos(angle) * radiusX, y: sin(angle) * radiusY)
+
+                if sample == 0 {
+                    path.move(to: point)
+                } else {
+                    path.addLine(to: point)
+                }
+            }
+
+            path.closeSubpath()
+            return path
+        }
+
         context.drawLayer { layer in
             layer.addFilter(.blur(radius: 4.8))
             layer.fill(
@@ -628,6 +646,32 @@ enum MeditationRenderer {
                     style: StrokeStyle(lineWidth: 0.72 + 0.94 * n1, lineCap: .round, lineJoin: .round)
                 )
             }
+        }
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 1.15))
+            layer.fill(
+                localEllipsePath(radiusX: minSide * 0.070, radiusY: minSide * 0.020),
+                with: .radialGradient(
+                    Gradient(colors: [
+                        Color.white.opacity(0.72 + 0.20 * Double(breath)),
+                        Color(red: 0.72, green: 0.98, blue: 1.0).opacity(0.46 + 0.18 * Double(breath)),
+                        Color(red: 0.80, green: 0.60, blue: 1.0).opacity(0.18),
+                        .clear,
+                    ]),
+                    center: center,
+                    startRadius: 0,
+                    endRadius: minSide * 0.070
+                )
+            )
+        }
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 0.18))
+            layer.fill(
+                localEllipsePath(radiusX: minSide * 0.036, radiusY: minSide * 0.008, samples: 24),
+                with: .color(Color.white.opacity(0.55 + 0.24 * Double(breath)))
+            )
         }
     }
 
