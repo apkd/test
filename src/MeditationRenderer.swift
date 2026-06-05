@@ -318,7 +318,7 @@ enum MeditationRenderer {
         )
 
         let flareCenter = CGPoint(
-            x: width * (0.51 + 0.012 * sin(cyclePhase)),
+            x: width * (0.535 + 0.012 * sin(cyclePhase)),
             y: height * (0.482 - 0.022 * breathEase)
         )
 
@@ -592,30 +592,40 @@ enum MeditationRenderer {
         }
 
         context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 0.24))
+            layer.addFilter(.blur(radius: 0.34))
 
-            for index in 0..<9 {
+            for index in 0..<10 {
                 let seed = index * 53 + 8501
                 let n0 = pseudoNoise(seed)
                 let n1 = pseudoNoise(seed + 13)
-                let phase = flow * (.pi * (1.15 + 0.24 * n0)) + t * (0.018 + 0.012 * n1)
-                let length = minSide * (0.062 + 0.052 * n0)
-                let offset = minSide * (n1 - 0.5) * 0.062
-                let y = offset + minSide * 0.012 * sin(phase + CGFloat(index) * 0.7)
-                let path = smoothPath(through: [
-                    localPoint(x: -length, y: y + minSide * 0.010 * sin(phase)),
-                    localPoint(x: -length * 0.25, y: y - minSide * 0.014 * cos(phase * 0.9)),
-                    localPoint(x: length * 0.32, y: y + minSide * 0.012 * sin(phase * 1.1)),
-                    localPoint(x: length, y: y - minSide * 0.008 * cos(phase)),
-                ])
+                let n2 = pseudoNoise(seed + 29)
+                let lane = (CGFloat(index) - 4.5) / 4.5
+                let crossingSign: CGFloat = index.isMultiple(of: 2) ? 1 : -1
+                let phase = flow * (.pi * (1.05 + 0.22 * n0)) + t * (0.015 + 0.010 * n1) + n2 * .pi * 2
+                let length = minSide * (0.135 + 0.030 * n0)
+                let laneOffset = lane * minSide * 0.020 + minSide * (n1 - 0.5) * 0.010
+                var points: [CGPoint] = []
+
+                for sample in 0...14 {
+                    let u = CGFloat(sample) / 14
+                    let centered = u * 2 - 1
+                    let envelope = pow(max(0, sin(u * .pi)), 0.52)
+                    let x = centered * length
+                    let braid = crossingSign * minSide * 0.042 * centered * envelope
+                    let ripple = minSide * 0.010 * envelope * sin(u * .pi * 3.0 + phase)
+                    let micro = minSide * 0.0045 * sin(u * .pi * 7.0 - phase * 0.7 + CGFloat(index))
+                    points.append(localPoint(x: x, y: laneOffset + braid + ripple + micro))
+                }
+
                 let color = index.isMultiple(of: 3)
                     ? Color.white
-                    : (index.isMultiple(of: 2) ? Color(red: 0.66, green: 0.96, blue: 1.0) : Color(red: 0.82, green: 0.72, blue: 1.0))
+                    : (index.isMultiple(of: 2) ? Color(red: 0.66, green: 0.96, blue: 1.0) : Color(red: 0.86, green: 0.68, blue: 1.0))
+                let opacity = (0.32 + 0.28 * Double(breath)) * Double(0.72 + 0.28 * n2)
 
                 layer.stroke(
-                    path,
-                    with: .color(color.opacity(0.42 + 0.34 * Double(breath))),
-                    style: StrokeStyle(lineWidth: 0.62 + 0.78 * n1, lineCap: .round, lineJoin: .round)
+                    smoothPath(through: points),
+                    with: .color(color.opacity(opacity)),
+                    style: StrokeStyle(lineWidth: 0.48 + 0.66 * n1, lineCap: .round, lineJoin: .round)
                 )
             }
         }
@@ -1086,7 +1096,7 @@ enum MeditationRenderer {
         let cameraWobble = CGFloat(sin(time * 0.17) * 1.4 + cos(time * 0.11) * 0.9) * motionScale
         let baseSunRadius = min(width, height) * 0.172
         let sunRadius = baseSunRadius * (0.975 + 0.05 * breath)
-        let sunVerticalOffset = baseSunRadius * (0.52 - 0.58 * sunRise)
+        let sunVerticalOffset = baseSunRadius * (0.46 - 0.64 * sunRise)
         let sunCenter = CGPoint(
             x: width * (0.5 + 0.012 * sin(CGFloat(time) * 0.08)),
             y: horizonY + cameraWobble + sunVerticalOffset
@@ -1201,7 +1211,7 @@ enum MeditationRenderer {
                     Color(red: 1.0, green: min(1.0, 0.70 + 0.06 * Double(sunRise) + 0.048 * Double(inhaleBrightness)), blue: 0.39 + 0.024 * Double(inhaleBrightness)),
                     Color(red: 1.0, green: min(1.0, 0.54 + 0.04 * Double(sunRise) + 0.035 * Double(inhaleBrightness)), blue: 0.34),
                 ]),
-                center: CGPoint(x: sunCenter.x, y: sunCenter.y + sunRadius * 0.05),
+                center: CGPoint(x: sunCenter.x, y: sunCenter.y - sunRadius * 0.08),
                 startRadius: 0,
                 endRadius: sunRadius
             )
@@ -1222,7 +1232,7 @@ enum MeditationRenderer {
                         Color(red: 1.0, green: 0.84, blue: 0.38).opacity(0.125 + 0.260 * Double(inhaleBrightness)),
                         .clear,
                     ]),
-                    center: CGPoint(x: sunCenter.x, y: sunCenter.y + sunRadius * 0.06),
+                    center: CGPoint(x: sunCenter.x, y: sunCenter.y - sunRadius * 0.10),
                     startRadius: 0,
                     endRadius: sunRadius * 0.92
                 )
