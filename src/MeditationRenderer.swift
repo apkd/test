@@ -414,8 +414,8 @@ enum MeditationRenderer {
             for string in strings where string.isFrontCore {
                 layerContext.stroke(
                     string.path.trimmedPath(from: 0.20, to: 0.78),
-                    with: .color(Color.white.opacity(string.coreOpacity * 0.54)),
-                    style: StrokeStyle(lineWidth: max(0.9, string.coreWidth * 0.82), lineCap: .round, lineJoin: .round)
+                    with: .color(Color.white.opacity(string.coreOpacity * 0.72)),
+                    style: StrokeStyle(lineWidth: max(1.0, string.coreWidth * 0.92), lineCap: .round, lineJoin: .round)
                 )
             }
         }
@@ -579,9 +579,9 @@ enum MeditationRenderer {
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.42 + 0.30 * Double(breath)),
-                        Color(red: 0.58, green: 0.96, blue: 1.0).opacity(0.34 + 0.18 * Double(breath)),
-                        Color(red: 0.76, green: 0.56, blue: 1.0).opacity(0.18 + 0.10 * Double(breath)),
+                        Color.white.opacity(0.52 + 0.34 * Double(breath)),
+                        Color(red: 0.58, green: 0.96, blue: 1.0).opacity(0.42 + 0.20 * Double(breath)),
+                        Color(red: 0.76, green: 0.56, blue: 1.0).opacity(0.22 + 0.12 * Double(breath)),
                         .clear,
                     ]),
                     center: center,
@@ -620,12 +620,12 @@ enum MeditationRenderer {
                 let color = index.isMultiple(of: 3)
                     ? Color.white
                     : (index.isMultiple(of: 2) ? Color(red: 0.66, green: 0.96, blue: 1.0) : Color(red: 0.86, green: 0.68, blue: 1.0))
-                let opacity = (0.32 + 0.28 * Double(breath)) * Double(0.72 + 0.28 * n2)
+                let opacity = (0.54 + 0.30 * Double(breath)) * Double(0.74 + 0.26 * n2)
 
                 layer.stroke(
                     smoothPath(through: points),
                     with: .color(color.opacity(opacity)),
-                    style: StrokeStyle(lineWidth: 0.48 + 0.66 * n1, lineCap: .round, lineJoin: .round)
+                    style: StrokeStyle(lineWidth: 0.72 + 0.94 * n1, lineCap: .round, lineJoin: .round)
                 )
             }
         }
@@ -971,7 +971,7 @@ enum MeditationRenderer {
                 let radius = 0.16 + 0.66 * n2
                 let local = max(0, 1 - distance / max(1, minSide * 0.34))
                 let twinkle = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * (0.42 + 0.55 * n3) + n2 * .pi * 2))
-                let opacity = Double(0.095 + 0.40 * local) * Double(0.82 + 0.44 * breath) * Double(twinkle)
+                let opacity = Double(0.110 + 0.48 * local) * Double(0.84 + 0.46 * breath) * Double(twinkle)
                 let color: Color
 
                 if n3 > 0.78 {
