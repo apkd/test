@@ -485,7 +485,7 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let sheetCount = reduceMotion ? 2 : 4
+        let sheetCount = reduceMotion ? 3 : 5
         let samples = reduceMotion ? 22 : 30
         let t = CGFloat(time)
 
@@ -504,12 +504,12 @@ enum MeditationRenderer {
                 let knot = exp(-pow((u - 0.52) / 0.23, 2))
                 let centerX = width * (-0.12 + 1.24 * u)
                 let centerY = height * (
-                    0.612
-                    - 0.238 * u
+                    0.606
+                    - 0.228 * u
                     + 0.030 * edge * sin(.pi * 2 * (u * 1.16 + 0.10 * CGFloat(index)) + phase)
                     + 0.014 * edge * sin(.pi * 2 * (u * 2.75 + n1) - phase * 0.62)
                 )
-                let halfHeight = minSide * (0.018 + 0.035 * knot + 0.010 * n0) * (0.88 + 0.24 * breath)
+                let halfHeight = minSide * (0.020 + 0.043 * knot + 0.012 * n0) * (0.90 + 0.26 * breath)
                 let edgeRipple = minSide * 0.008 * edge * sin(.pi * 2 * (u * 3.4 + n2) + phase)
                 let skew = width * 0.010 * edge * (CGFloat(index) - CGFloat(sheetCount - 1) * 0.5)
 
@@ -540,7 +540,7 @@ enum MeditationRenderer {
                 let cyan = Color(red: 0.32, green: 0.86, blue: 1.0)
                 let violet = Color(red: 0.64, green: 0.46, blue: 1.0)
                 let color = index.isMultiple(of: 2) ? cyan : violet
-                let opacity = (0.058 + 0.026 * Double(n0)) * Double(0.82 + 0.32 * breath)
+                let opacity = (0.075 + 0.030 * Double(n0)) * Double(0.86 + 0.34 * breath)
 
                 layer.fill(sheetPath(index: index), with: .color(color.opacity(opacity)))
             }
@@ -746,7 +746,7 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let count = reduceMotion ? 4 : 6
+        let count = reduceMotion ? 5 : 7
         let intensity = 0.86 + 0.52 * breath
 
         context.drawLayer { layer in
@@ -834,7 +834,7 @@ enum MeditationRenderer {
         }
 
         let flareCenter = CGPoint(
-            x: width * (0.515 + 0.010 * sin(cyclePhase + CGFloat(time) * 0.05)),
+            x: width * (0.535 + 0.010 * sin(cyclePhase + CGFloat(time) * 0.05)),
             y: height * (0.482 - 0.020 * breath)
         )
 
@@ -886,7 +886,7 @@ enum MeditationRenderer {
             y: height * (0.602 + lane * 0.104 * spread + 0.024 * sin(phase))
         )
         let knot = CGPoint(
-            x: width * (0.510 + 0.026 * sin(counterPhase + cyclePhase)),
+            x: width * (0.535 + 0.026 * sin(counterPhase + cyclePhase)),
             y: height * (0.482 + lane * 0.013 + 0.023 * cos(phase * 0.9 + cyclePhase))
         )
         let end = CGPoint(
