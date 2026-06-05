@@ -530,7 +530,7 @@ enum MeditationRenderer {
                 let cyan = Color(red: 0.32, green: 0.86, blue: 1.0)
                 let violet = Color(red: 0.64, green: 0.46, blue: 1.0)
                 let color = index.isMultiple(of: 2) ? cyan : violet
-                let opacity = (0.082 + 0.034 * Double(n0)) * Double(0.86 + 0.36 * breath)
+                let opacity = (0.108 + 0.042 * Double(n0)) * Double(0.86 + 0.36 * breath)
 
                 layer.fill(sheetPath(index: index), with: .color(color.opacity(opacity)))
             }
@@ -783,8 +783,8 @@ enum MeditationRenderer {
                 let n0 = pseudoNoise(seed)
                 let n1 = pseudoNoise(seed + 17)
                 let color = silkRibbonVeilColor(index: index, breath: breath)
-                let lineWidth = minSide * (0.048 + 0.030 * n0) * (0.92 + 0.30 * breath)
-                let opacity = Double(0.052 + 0.032 * n1) * Double(intensity)
+                let lineWidth = minSide * (0.056 + 0.034 * n0) * (0.92 + 0.30 * breath)
+                let opacity = Double(0.070 + 0.038 * n1) * Double(intensity)
 
                 layer.stroke(
                     path,
@@ -809,7 +809,7 @@ enum MeditationRenderer {
                 )
                 let centerDistance = abs(CGFloat(index) - CGFloat(count - 1) * 0.5) / max(1, CGFloat(count - 1) * 0.5)
                 let lineWidth = max(0.8, minSide * (0.0022 + 0.0028 * (1 - centerDistance)))
-                let opacity = Double(0.30 + 0.32 * (1 - centerDistance)) * Double(0.86 + 0.34 * breath)
+                let opacity = Double(0.34 + 0.36 * (1 - centerDistance)) * Double(0.86 + 0.34 * breath)
                 let color = centerDistance < 0.25
                     ? Color(red: 0.92, green: 0.98, blue: 1.0)
                     : silkRibbonVeilColor(index: index, breath: breath)
@@ -1043,7 +1043,7 @@ enum MeditationRenderer {
             let envelopeOpacity = 0.42 + 0.58 * envelope
             let breathOpacity = 0.78 + 0.36 * breath
             let baseOpacity = spark ? 0.30 : 0.082
-            let opacity = Double(baseOpacity * envelopeOpacity * breathOpacity)
+            let opacity = Double(baseOpacity * envelopeOpacity * breathOpacity) * 1.18
             let color: Color
 
             if spark {
@@ -1443,7 +1443,7 @@ enum MeditationRenderer {
             y: height * (0.47 + 0.025 * cos(t * 0.07))
         )
         let scale = min(width, height)
-        let reach = scale * (0.30 + 0.32 * breath)
+        let reach = scale * (0.32 + 0.34 * breath)
 
         context.drawLayer { layer in
             layer.addFilter(.blur(radius: 22))
@@ -1470,7 +1470,7 @@ enum MeditationRenderer {
                     x: center.x + cos(angle) * distance * 1.20 + drift.x,
                     y: center.y + sin(angle) * distance * 0.82 + drift.y
                 )
-                let radius = scale * (0.20 + 0.17 * n1) * (0.90 + 0.36 * localBreath)
+                let radius = scale * (0.22 + 0.18 * n1) * (0.90 + 0.36 * localBreath)
                 let rect = CGRect(
                     x: cloudCenter.x - radius * (1.05 + n0),
                     y: cloudCenter.y - radius * (0.88 + 0.45 * n1),
@@ -1478,9 +1478,9 @@ enum MeditationRenderer {
                     height: radius * (1.6 + 1.0 * n1)
                 )
                 let colors: [Color] = [
-                    Color(red: 0.84, green: 0.68, blue: 1.0).opacity(0.26 + 0.14 * Double(localBreath)),
-                    Color(red: 0.20, green: 0.63, blue: 1.0).opacity(0.15 + 0.11 * Double(localPulse)),
-                    Color(red: 0.44, green: 0.20, blue: 0.86).opacity(0.14),
+                    Color(red: 0.86, green: 0.70, blue: 1.0).opacity(0.28 + 0.15 * Double(localBreath)),
+                    Color(red: 0.22, green: 0.66, blue: 1.0).opacity(0.17 + 0.12 * Double(localPulse)),
+                    Color(red: 0.46, green: 0.21, blue: 0.88).opacity(0.15),
                     .clear,
                 ]
 
@@ -1527,8 +1527,8 @@ enum MeditationRenderer {
                     x: center.x + asymmetry.width + drift.x,
                     y: center.y + asymmetry.height + drift.y
                 )
-                let radius = scale * (0.052 + 0.105 * n1) * (0.86 + 0.56 * localBreath)
-                let alpha = 0.15 + 0.17 * Double(localPulse) + 0.13 * Double(localBreath)
+                let radius = scale * (0.058 + 0.112 * n1) * (0.86 + 0.56 * localBreath)
+                let alpha = 0.17 + 0.18 * Double(localPulse) + 0.14 * Double(localBreath)
                 let rect = CGRect(
                     x: particleCenter.x - radius * (0.8 + n2),
                     y: particleCenter.y - radius * (0.8 + 0.8 * n3),
@@ -1558,21 +1558,21 @@ enum MeditationRenderer {
             layer.addFilter(.blur(radius: 12))
             layer.fill(
                 Path(ellipseIn: CGRect(
-                    x: center.x - reach * 0.58,
-                    y: center.y - reach * 0.48,
-                    width: reach * 1.16,
-                    height: reach * 0.96
+                    x: center.x - reach * 0.68,
+                    y: center.y - reach * 0.54,
+                    width: reach * 1.36,
+                    height: reach * 1.06
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.21 + 0.13 * Double(fullBreath)),
-                        Color(red: 0.74, green: 0.58, blue: 1.0).opacity(0.39 + 0.18 * Double(breath)),
-                        Color(red: 0.22, green: 0.68, blue: 1.0).opacity(0.22),
+                        Color.white.opacity(0.23 + 0.14 * Double(fullBreath)),
+                        Color(red: 0.74, green: 0.60, blue: 1.0).opacity(0.43 + 0.20 * Double(breath)),
+                        Color(red: 0.20, green: 0.70, blue: 1.0).opacity(0.26),
                         .clear,
                     ]),
                     center: center,
                     startRadius: reach * 0.08,
-                    endRadius: reach * 0.64
+                    endRadius: reach * 0.76
                 )
             )
         }
@@ -1746,7 +1746,7 @@ enum MeditationRenderer {
         let t = CGFloat(time)
 
         context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 82))
+            layer.addFilter(.blur(radius: 76))
             fillRadialEllipse(
                 in: &layer,
                 rect: CGRect(
@@ -1798,7 +1798,7 @@ enum MeditationRenderer {
                 )
                 let cool = Color(red: 0.54, green: 0.66, blue: 1.0)
                 let violet = Color(red: 0.42, green: 0.32, blue: 0.78)
-                let opacity = (0.044 + 0.040 * Double(localPulse) + 0.048 * Double(breath)) * Double(glowLevel)
+                let opacity = (0.034 + 0.030 * Double(localPulse) + 0.036 * Double(breath)) * Double(glowLevel)
 
                 fillRadialEllipse(
                     in: &layer,
@@ -1832,8 +1832,8 @@ enum MeditationRenderer {
         drawSoftGlowGrain(
             in: &context,
             size: size,
-            count: reduceMotion ? 750 : 2_700,
-            alphaScale: (reduceMotion ? 1.00 : 1.62) * (1.0 + 0.42 * Double(exhaleDepth))
+            count: reduceMotion ? 1_000 : 3_400,
+            alphaScale: (reduceMotion ? 1.30 : 2.25) * (1.0 + 0.46 * Double(exhaleDepth))
         )
     }
 
@@ -1849,7 +1849,7 @@ enum MeditationRenderer {
         let height = size.height
         let scale = min(width, height)
         let t = CGFloat(time)
-        let count = reduceMotion ? 4 : 9
+        let count = reduceMotion ? 4 : 7
 
         context.drawLayer { layer in
             layer.addFilter(.blur(radius: 58))
@@ -1868,7 +1868,7 @@ enum MeditationRenderer {
                     y: height * (0.18 + 0.56 * n1) + drift.y
                 )
                 let radius = scale * (0.16 + 0.18 * n2) * (0.92 + 0.16 * breath)
-                let opacity = (0.010 + 0.018 * Double(n1)) * Double(0.78 + 0.36 * breath) * Double(1.0 - 0.35 * exhaleDepth)
+                let opacity = (0.007 + 0.012 * Double(n1)) * Double(0.78 + 0.36 * breath) * Double(1.0 - 0.35 * exhaleDepth)
                 let cool = Color(red: 0.38 + 0.12 * Double(n0), green: 0.46 + 0.12 * Double(n2), blue: 0.94)
                 let violet = Color(red: 0.34 + 0.12 * Double(n2), green: 0.28, blue: 0.70 + 0.16 * Double(n1))
 
@@ -1903,8 +1903,8 @@ enum MeditationRenderer {
             let n0 = pseudoNoise(index * 73 + 17)
             let n1 = pseudoNoise(index * 73 + 31)
             let n2 = pseudoNoise(index * 73 + 59)
-            let radius = 0.32 + 0.36 * n2
-            let alpha = (0.0038 + 0.0082 * Double(pseudoNoise(index * 73 + 83))) * alphaScale
+            let radius = 0.18 + 0.24 * n2
+            let alpha = (0.0048 + 0.0105 * Double(pseudoNoise(index * 73 + 83))) * alphaScale
             let color = index.isMultiple(of: 2)
                 ? Color.white.opacity(alpha)
                 : Color.black.opacity(alpha * 0.50)
@@ -1944,6 +1944,16 @@ enum MeditationRenderer {
         }
 
         drawMoltenSunsetReflection(
+            in: &context,
+            width: width,
+            waterHeight: waterHeight,
+            horizonY: horizonY,
+            breath: breath,
+            time: t,
+            sunCenterX: sunCenterX
+        )
+
+        drawGoldenSunsetReflectionLattice(
             in: &context,
             width: width,
             waterHeight: waterHeight,
@@ -2016,6 +2026,68 @@ enum MeditationRenderer {
                     path,
                     with: .color(color),
                     style: StrokeStyle(lineWidth: 0.44 + 0.78 * nearHorizon + 0.34 * n0, lineCap: .round, lineJoin: .round)
+                )
+            }
+        }
+    }
+
+    private static func drawGoldenSunsetReflectionLattice(
+        in context: inout GraphicsContext,
+        width: CGFloat,
+        waterHeight: CGFloat,
+        horizonY: CGFloat,
+        breath: CGFloat,
+        time: CGFloat,
+        sunCenterX: CGFloat
+    ) {
+        let count = 86
+        let pi2 = CGFloat.pi * 2
+
+        context.drawLayer { layer in
+            layer.addFilter(.blur(radius: 0.46))
+
+            for index in 0..<count {
+                let seed = index * 47 + 1559
+                let n0 = pseudoNoise(seed)
+                let n1 = pseudoNoise(seed + 13)
+                let n2 = pseudoNoise(seed + 31)
+                let n3 = pseudoNoise(seed + 47)
+                let depth = (CGFloat(index) + 0.42 * n0) / CGFloat(count)
+                let nearHorizon = max(0, 1 - depth)
+                let midTrail = max(0, 1 - abs(depth - 0.34) / 0.43)
+                let tailFade = max(0, 1 - max(0, depth - 0.76) / 0.24)
+                let y = horizonY + waterHeight * (0.048 + 0.82 * depth)
+                let columnHalf = width * (0.018 + 0.090 * nearHorizon + 0.062 * midTrail)
+                let centerX = sunCenterX
+                    + width * (0.004 + 0.008 * depth) * sin(time * (0.20 + 0.18 * n2) + n1 * pi2)
+                    + (n0 - 0.5) * columnHalf * (0.62 + 0.42 * depth)
+                let halfWidth = width
+                    * (0.010 + 0.085 * nearHorizon + 0.048 * midTrail)
+                    * (0.34 + 0.94 * n2)
+                    * (0.88 + 0.18 * sin(time * (0.28 + 0.20 * n3) + n0 * pi2))
+                let phase = n3 * pi2 + time * (0.12 + 0.18 * n1)
+                let flicker = glintFlicker(time: time, speed: 0.72 + 1.46 * n2, phase: n0 * pi2, floor: 0.36)
+                let opacity = Double(0.060 + 0.250 * nearHorizon + 0.220 * midTrail)
+                    * Double(0.82 + 0.72 * breath)
+                    * Double(0.52 + 0.74 * n1)
+                    * Double(0.24 + 0.76 * tailFade)
+                    * Double(flicker)
+                let color = depth < 0.30
+                    ? Color(red: 1.0, green: 0.80, blue: 0.40).opacity(opacity)
+                    : Color(red: 1.0, green: 0.34 + 0.22 * Double(nearHorizon), blue: 0.25 + 0.08 * Double(n2)).opacity(opacity * 0.92)
+                let path = sunsetGlintPath(
+                    startX: centerX - halfWidth,
+                    endX: centerX + halfWidth,
+                    y: y,
+                    amplitude: 0.55 + 3.4 * depth * (0.36 + n3),
+                    phase: phase,
+                    segments: n0 > 0.38 ? 4 : 3
+                )
+
+                layer.stroke(
+                    path,
+                    with: .color(color),
+                    style: StrokeStyle(lineWidth: 0.52 + 0.86 * nearHorizon + 0.40 * n0, lineCap: .round, lineJoin: .round)
                 )
             }
         }
@@ -2196,7 +2268,7 @@ enum MeditationRenderer {
                 let length = width * (0.14 + 0.40 * n2) * (0.76 + 0.78 * depth)
                 let amplitude = 0.8 + 5.4 * depth * (0.35 + n3)
                 let phase = t * (0.055 + 0.080 * n0) + CGFloat(index) * 0.57
-                let opacity = (0.024 + 0.054 * Double(1 - depth) + 0.024 * Double(breath)) * Double(0.46 + 0.60 * n2)
+                let opacity = (0.030 + 0.062 * Double(1 - depth) + 0.030 * Double(breath)) * Double(0.46 + 0.60 * n2)
                 let path = wavePath(
                     startX: startX,
                     endX: startX + length,
@@ -2208,7 +2280,7 @@ enum MeditationRenderer {
 
                 layer.stroke(
                     path,
-                    with: .color(Color(red: 0.50, green: 0.32 + 0.09 * Double(1 - depth), blue: 0.54 + 0.11 * Double(1 - depth)).opacity(opacity)),
+                    with: .color(Color(red: 0.56, green: 0.34 + 0.11 * Double(1 - depth), blue: 0.50 + 0.10 * Double(1 - depth)).opacity(opacity)),
                     style: StrokeStyle(lineWidth: 0.55 + 0.65 * depth + 0.45 * n0, lineCap: .round, lineJoin: .round)
                 )
             }
@@ -2236,7 +2308,7 @@ enum MeditationRenderer {
 
             context.stroke(
                 path,
-                with: .color(Color(red: 1.0, green: 0.40 + 0.27 * Double(1 - depth), blue: 0.25).opacity((0.046 + 0.110 * Double(breath)) * Double(0.32 + 0.74 * n0))),
+                with: .color(Color(red: 1.0, green: 0.42 + 0.29 * Double(1 - depth), blue: 0.24).opacity((0.060 + 0.128 * Double(breath)) * Double(0.32 + 0.74 * n0))),
                 style: StrokeStyle(lineWidth: 0.34 + 0.58 * n2, lineCap: .round, lineJoin: .round)
             )
         }
