@@ -386,79 +386,43 @@ enum MeditationRenderer {
             }
         }
 
-        context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 3.3 + 1.6 * breathEase))
-            for string in strings {
-                layerContext.stroke(
-                    string.path,
-                    with: .color(string.color.opacity(string.bodyOpacity)),
-                    style: StrokeStyle(lineWidth: string.bodyWidth, lineCap: .round, lineJoin: .round)
-                )
-            }
+        for string in strings {
+            context.stroke(
+                string.path,
+                with: .color(string.color.opacity(string.bodyOpacity * 1.06)),
+                style: StrokeStyle(lineWidth: string.bodyWidth * 0.92, lineCap: .round, lineJoin: .round)
+            )
         }
 
-        context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 0.18))
-            for string in strings where string.isFrontCore {
-                layerContext.stroke(
-                    string.path.trimmedPath(from: 0.045, to: 0.955),
-                    with: .color(string.color.opacity(string.coreOpacity)),
-                    style: StrokeStyle(lineWidth: string.coreWidth, lineCap: .round, lineJoin: .round)
-                )
-                layerContext.stroke(
-                    string.path.trimmedPath(from: 0, to: 0.055),
-                    with: .color(string.color.opacity(string.coreOpacity * 0.20)),
-                    style: StrokeStyle(lineWidth: string.coreWidth * 0.78, lineCap: .round, lineJoin: .round)
-                )
-                layerContext.stroke(
-                    string.path.trimmedPath(from: 0.945, to: 1),
-                    with: .color(string.color.opacity(string.coreOpacity * 0.20)),
-                    style: StrokeStyle(lineWidth: string.coreWidth * 0.78, lineCap: .round, lineJoin: .round)
-                )
-            }
-        }
+        for string in strings where string.isFrontCore {
+            context.stroke(
+                string.path.trimmedPath(from: 0.045, to: 0.955),
+                with: .color(string.color.opacity(string.coreOpacity)),
+                style: StrokeStyle(lineWidth: string.coreWidth, lineCap: .round, lineJoin: .round)
+            )
+            context.stroke(
+                string.path.trimmedPath(from: 0.20, to: 0.78),
+                with: .color(Color.white.opacity(string.coreOpacity * 0.54)),
+                style: StrokeStyle(lineWidth: max(0.8, string.coreWidth * 0.72), lineCap: .round, lineJoin: .round)
+            )
 
-        context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 0.42))
-            for string in strings where string.isFrontCore {
-                layerContext.stroke(
-                    string.path.trimmedPath(from: 0.20, to: 0.78),
-                    with: .color(Color.white.opacity(string.coreOpacity * 0.72)),
-                    style: StrokeStyle(lineWidth: max(1.0, string.coreWidth * 0.92), lineCap: .round, lineJoin: .round)
+            let softStart = max(0.06, string.pulsePosition - string.pulseWidth)
+            let softEnd = min(0.94, string.pulsePosition + string.pulseWidth)
+            if softEnd > softStart {
+                context.stroke(
+                    string.path.trimmedPath(from: softStart, to: softEnd),
+                    with: .color(string.color.opacity(string.pulseOpacity * 0.34)),
+                    style: StrokeStyle(lineWidth: max(2.0, string.bodyWidth * 0.88), lineCap: .round, lineJoin: .round)
                 )
             }
-        }
 
-        context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 2.2))
-            for string in strings where string.isFrontCore {
-                let start = max(0.06, string.pulsePosition - string.pulseWidth)
-                let end = min(0.94, string.pulsePosition + string.pulseWidth)
-                guard end > start else {
-                    continue
-                }
-
-                layerContext.stroke(
-                    string.path.trimmedPath(from: start, to: end),
-                    with: .color(string.color.opacity(string.pulseOpacity * 0.58)),
-                    style: StrokeStyle(lineWidth: max(3.2, string.bodyWidth * 1.34), lineCap: .round, lineJoin: .round)
-                )
-            }
-        }
-
-        context.drawLayer { layerContext in
-            layerContext.addFilter(.blur(radius: 0.32))
-            for string in strings where string.isFrontCore {
-                let start = max(0.06, string.pulsePosition - string.pulseWidth * 0.50)
-                let end = min(0.94, string.pulsePosition + string.pulseWidth * 0.50)
-                guard end > start else {
-                    continue
-                }
-
-                layerContext.stroke(
-                    string.path.trimmedPath(from: start, to: end),
-                    with: .color(Color(red: 0.92, green: 0.98, blue: 1.0).opacity(string.pulseOpacity)),
-                    style: StrokeStyle(lineWidth: max(0.8, string.coreWidth * 1.18), lineCap: .round, lineJoin: .round)
+            let coreStart = max(0.06, string.pulsePosition - string.pulseWidth * 0.46)
+            let coreEnd = min(0.94, string.pulsePosition + string.pulseWidth * 0.46)
+            if coreEnd > coreStart {
+                context.stroke(
+                    string.path.trimmedPath(from: coreStart, to: coreEnd),
+                    with: .color(Color(red: 0.92, green: 0.98, blue: 1.0).opacity(string.pulseOpacity * 0.88)),
+                    style: StrokeStyle(lineWidth: max(0.7, string.coreWidth), lineCap: .round, lineJoin: .round)
                 )
             }
         }
