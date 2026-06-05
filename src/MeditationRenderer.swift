@@ -597,9 +597,9 @@ enum MeditationRenderer {
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.52 + 0.34 * Double(breath)),
-                        Color(red: 0.58, green: 0.96, blue: 1.0).opacity(0.42 + 0.20 * Double(breath)),
-                        Color(red: 0.76, green: 0.56, blue: 1.0).opacity(0.22 + 0.12 * Double(breath)),
+                        Color.white.opacity(0.64 + 0.34 * Double(breath)),
+                        Color(red: 0.62, green: 0.98, blue: 1.0).opacity(0.46 + 0.20 * Double(breath)),
+                        Color(red: 0.78, green: 0.58, blue: 1.0).opacity(0.24 + 0.12 * Double(breath)),
                         .clear,
                     ]),
                     center: center,
@@ -668,8 +668,8 @@ enum MeditationRenderer {
 
                 layer.stroke(
                     smoothPath(through: points),
-                    with: .color(color.opacity(0.40 + 0.24 * Double(breath))),
-                    style: StrokeStyle(lineWidth: 0.68 + 0.28 * CGFloat(index), lineCap: .round, lineJoin: .round)
+                    with: .color(color.opacity(0.48 + 0.28 * Double(breath))),
+                    style: StrokeStyle(lineWidth: 0.78 + 0.32 * CGFloat(index), lineCap: .round, lineJoin: .round)
                 )
             }
         }
@@ -1134,7 +1134,7 @@ enum MeditationRenderer {
         let exhaleDarkening = snapshot.isInhale
             ? CGFloat(0)
             : CGFloat(BreathingTimeline.smoothstep(Double(exhaleWave)))
-        let sunBrightness = min(1.62, max(0.80, 0.98 + 0.58 * inhaleBrightness + 0.18 * skyBreath - 0.18 * exhaleDarkening))
+        let sunBrightness = min(1.72, max(0.82, 1.00 + 0.64 * inhaleBrightness + 0.18 * skyBreath - 0.16 * exhaleDarkening))
         let sunBrightnessDouble = Double(sunBrightness)
         let sunRise = pow(skyBreath, 1.15)
         let horizonY = height * 0.60
@@ -1273,8 +1273,8 @@ enum MeditationRenderer {
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.095 + 0.330 * Double(inhaleBrightness)),
-                        Color(red: 1.0, green: 0.84, blue: 0.38).opacity(0.125 + 0.260 * Double(inhaleBrightness)),
+                        Color.white.opacity(0.140 + 0.400 * Double(inhaleBrightness)),
+                        Color(red: 1.0, green: 0.86, blue: 0.40).opacity(0.160 + 0.300 * Double(inhaleBrightness)),
                         .clear,
                     ]),
                     center: CGPoint(x: sunCenter.x, y: sunCenter.y - sunRadius * 0.10),
@@ -1621,9 +1621,9 @@ enum MeditationRenderer {
                 )),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.22 + 0.14 * Double(fullBreath)),
-                        Color(red: 0.70, green: 0.58, blue: 1.0).opacity(0.36 + 0.18 * Double(breath)),
-                        Color(red: 0.20, green: 0.70, blue: 1.0).opacity(0.23),
+                        Color.white.opacity(0.21 + 0.13 * Double(fullBreath)),
+                        Color(red: 0.74, green: 0.58, blue: 1.0).opacity(0.39 + 0.18 * Double(breath)),
+                        Color(red: 0.22, green: 0.68, blue: 1.0).opacity(0.22),
                         .clear,
                     ]),
                     center: center,
