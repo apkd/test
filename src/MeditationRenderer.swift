@@ -475,7 +475,7 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let sheetCount = reduceMotion ? 2 : 4
+        let sheetCount = reduceMotion ? 2 : 5
         let samples = reduceMotion ? 22 : 30
         let t = CGFloat(time)
 
@@ -530,7 +530,7 @@ enum MeditationRenderer {
                 let cyan = Color(red: 0.32, green: 0.86, blue: 1.0)
                 let violet = Color(red: 0.64, green: 0.46, blue: 1.0)
                 let color = index.isMultiple(of: 2) ? cyan : violet
-                let opacity = (0.108 + 0.042 * Double(n0)) * Double(0.86 + 0.36 * breath)
+                let opacity = (0.126 + 0.048 * Double(n0)) * Double(0.86 + 0.36 * breath)
 
                 layer.fill(sheetPath(index: index), with: .color(color.opacity(opacity)))
             }
@@ -935,7 +935,7 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let count = reduceMotion ? 36 : 72
+        let count = reduceMotion ? 40 : 108
         let t = CGFloat(time)
 
         context.drawLayer { layer in
@@ -948,7 +948,7 @@ enum MeditationRenderer {
                 let n2 = pseudoNoise(seed + 23)
                 let n3 = pseudoNoise(seed + 47)
                 let angle = n0 * .pi * 2
-                let distance = minSide * (0.010 + 0.315 * pow(n1, 1.75)) * (0.84 + 0.28 * breath)
+                let distance = minSide * (0.010 + 0.360 * pow(n1, 1.70)) * (0.84 + 0.30 * breath)
                 let localFlow = flow * (.pi * 1.60 + 0.74 * n2) + t * (0.012 + 0.010 * n2) + n3 * .pi * 2
                 let diagonal = CGVector(dx: cos(-0.30), dy: sin(-0.30))
                 let spreadX = cos(angle) * distance * (1.48 + 0.35 * n2)
@@ -957,10 +957,10 @@ enum MeditationRenderer {
                     + diagonal.dy * minSide * 0.054 * cos(localFlow * 0.9)
                 let x = center.x + spreadX
                 let y = center.y + spreadY
-                let radius = 0.16 + 0.66 * n2
+                let radius = 0.13 + 0.54 * n2
                 let local = max(0, 1 - distance / max(1, minSide * 0.34))
                 let twinkle = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * (0.42 + 0.55 * n3) + n2 * .pi * 2))
-                let opacity = Double(0.135 + 0.56 * local) * Double(0.84 + 0.46 * breath) * Double(twinkle)
+                let opacity = Double(0.160 + 0.64 * local) * Double(0.84 + 0.46 * breath) * Double(twinkle)
                 let color: Color
 
                 if n3 > 0.78 {
@@ -1042,7 +1042,7 @@ enum MeditationRenderer {
             let spark = n2 > 0.88
             let envelopeOpacity = 0.42 + 0.58 * envelope
             let breathOpacity = 0.78 + 0.36 * breath
-            let baseOpacity = spark ? 0.30 : 0.082
+            let baseOpacity = spark ? 0.34 : 0.102
             let opacity = Double(baseOpacity * envelopeOpacity * breathOpacity) * 1.18
             let color: Color
 
@@ -1798,7 +1798,7 @@ enum MeditationRenderer {
                 )
                 let cool = Color(red: 0.54, green: 0.66, blue: 1.0)
                 let violet = Color(red: 0.42, green: 0.32, blue: 0.78)
-                let opacity = (0.034 + 0.030 * Double(localPulse) + 0.036 * Double(breath)) * Double(glowLevel)
+                let opacity = (0.020 + 0.018 * Double(localPulse) + 0.022 * Double(breath)) * Double(glowLevel)
 
                 fillRadialEllipse(
                     in: &layer,
@@ -1832,8 +1832,8 @@ enum MeditationRenderer {
         drawSoftGlowGrain(
             in: &context,
             size: size,
-            count: reduceMotion ? 1_000 : 3_400,
-            alphaScale: (reduceMotion ? 1.30 : 2.25) * (1.0 + 0.46 * Double(exhaleDepth))
+            count: reduceMotion ? 700 : 1_900,
+            alphaScale: (reduceMotion ? 1.05 : 1.75) * (1.0 + 0.42 * Double(exhaleDepth))
         )
     }
 
@@ -1849,10 +1849,10 @@ enum MeditationRenderer {
         let height = size.height
         let scale = min(width, height)
         let t = CGFloat(time)
-        let count = reduceMotion ? 4 : 7
+        let count = reduceMotion ? 3 : 5
 
         context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 58))
+            layer.addFilter(.blur(radius: 68))
 
             for index in 0..<count {
                 let seed = index * 67 + 4201
@@ -1868,7 +1868,7 @@ enum MeditationRenderer {
                     y: height * (0.18 + 0.56 * n1) + drift.y
                 )
                 let radius = scale * (0.16 + 0.18 * n2) * (0.92 + 0.16 * breath)
-                let opacity = (0.007 + 0.012 * Double(n1)) * Double(0.78 + 0.36 * breath) * Double(1.0 - 0.35 * exhaleDepth)
+                let opacity = (0.0038 + 0.0070 * Double(n1)) * Double(0.78 + 0.36 * breath) * Double(1.0 - 0.35 * exhaleDepth)
                 let cool = Color(red: 0.38 + 0.12 * Double(n0), green: 0.46 + 0.12 * Double(n2), blue: 0.94)
                 let violet = Color(red: 0.34 + 0.12 * Double(n2), green: 0.28, blue: 0.70 + 0.16 * Double(n1))
 
@@ -1903,8 +1903,8 @@ enum MeditationRenderer {
             let n0 = pseudoNoise(index * 73 + 17)
             let n1 = pseudoNoise(index * 73 + 31)
             let n2 = pseudoNoise(index * 73 + 59)
-            let radius = 0.18 + 0.24 * n2
-            let alpha = (0.0048 + 0.0105 * Double(pseudoNoise(index * 73 + 83))) * alphaScale
+            let radius = 0.16 + 0.20 * n2
+            let alpha = (0.0042 + 0.0088 * Double(pseudoNoise(index * 73 + 83))) * alphaScale
             let color = index.isMultiple(of: 2)
                 ? Color.white.opacity(alpha)
                 : Color.black.opacity(alpha * 0.50)
