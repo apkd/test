@@ -485,7 +485,7 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let sheetCount = reduceMotion ? 3 : 5
+        let sheetCount = reduceMotion ? 2 : 4
         let samples = reduceMotion ? 22 : 30
         let t = CGFloat(time)
 
@@ -651,12 +651,12 @@ enum MeditationRenderer {
         context.drawLayer { layer in
             layer.addFilter(.blur(radius: 1.15))
             layer.fill(
-                localEllipsePath(radiusX: minSide * 0.070, radiusY: minSide * 0.020),
+                localEllipsePath(radiusX: minSide * 0.082, radiusY: minSide * 0.006),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color.white.opacity(0.72 + 0.20 * Double(breath)),
-                        Color(red: 0.72, green: 0.98, blue: 1.0).opacity(0.46 + 0.18 * Double(breath)),
-                        Color(red: 0.80, green: 0.60, blue: 1.0).opacity(0.18),
+                        Color.white.opacity(0.30 + 0.18 * Double(breath)),
+                        Color(red: 0.72, green: 0.98, blue: 1.0).opacity(0.28 + 0.12 * Double(breath)),
+                        Color(red: 0.80, green: 0.60, blue: 1.0).opacity(0.10),
                         .clear,
                     ]),
                     center: center,
@@ -666,13 +666,6 @@ enum MeditationRenderer {
             )
         }
 
-        context.drawLayer { layer in
-            layer.addFilter(.blur(radius: 0.18))
-            layer.fill(
-                localEllipsePath(radiusX: minSide * 0.036, radiusY: minSide * 0.008, samples: 24),
-                with: .color(Color.white.opacity(0.55 + 0.24 * Double(breath)))
-            )
-        }
     }
 
     private static func drawSilkRibbonKnotLacing(
@@ -790,7 +783,7 @@ enum MeditationRenderer {
         let width = size.width
         let height = size.height
         let minSide = min(width, height)
-        let count = reduceMotion ? 5 : 7
+        let count = reduceMotion ? 4 : 6
         let intensity = 0.86 + 0.52 * breath
 
         context.drawLayer { layer in
